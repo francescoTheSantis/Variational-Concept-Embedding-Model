@@ -9,6 +9,20 @@ warnings.filterwarnings("ignore")
 
 plt.style.use(['science', 'ieee'])
 
+def set_seed(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available(): 
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed) 
+
+def D_kl_gaussian(mu_q, logvar_q, mu_p, sigma_p):
+    
+    trace_var = torch.trace
+    n_dimens = mu_q.shape[-1]
+    log_determinant_var = - torch.logdet(sigma_q)
+
+    return kl_div
+
 def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, output_folder=None):
 
     fig, axs = plt.subplots(1, 2, figsize=(14, 5))
