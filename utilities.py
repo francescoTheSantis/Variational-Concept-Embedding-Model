@@ -1,0 +1,51 @@
+import os
+import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, accuracy_score
+import torch
+import numpy as np
+import scienceplots
+import warnings
+warnings.filterwarnings("ignore")
+
+plt.style.use(['science', 'ieee'])
+
+def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, output_folder=None):
+
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Plot task training and validation losses
+    axs[0].plot(train_task_losses, label='Train Task Loss')
+    axs[0].plot(val_task_losses, label='Validation Task Loss')
+    axs[0].set_xlabel('Epochs')
+    axs[0].set_ylabel('Loss')
+    axs[0].set_title('Task Training and Validation Loss')
+    axs[0].legend()
+
+    # Plot concept training and validation losses
+    axs[1].plot(train_concept_losses, label='Train Concept Loss')
+    axs[1].plot(val_concept_losses, label='Validation Concept Loss')
+    axs[1].set_xlabel('Epochs')
+    axs[1].set_ylabel('Loss')
+    axs[1].set_title('Concept Training and Validation Loss')
+    axs[1].legend()
+
+    # Save the figure
+    fig.tight_layout()
+    plt.savefig(os.path.join(output_folder, 'training_validation_losses.pdf'))
+    plt.show()  # Show the plot
+    plt.close()
+
+
+def f1_acc_metrics(y_true, y_pred):
+    # Convert PyTorch tensors to lists if necessary
+    if isinstance(y_true, torch.Tensor):
+        y_true = y_true.cpu().numpy().tolist()
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.cpu().numpy().tolist()
+    
+    # Calculate the F1 score
+    f1 = f1_score(y_true, y_pred, average='macro')
+    # Calculate the accuracy
+    accuracy = accuracy_score(y_true, y_pred)
+    return f1, accuracy
+
