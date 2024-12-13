@@ -6,7 +6,7 @@ from utilities import D_kl_gaussian, get_intervened_concepts_predictions
     
 @torch.no_grad()
 def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_size,
-             concept_form=None, task_form=None, device='cuda', corruption=0, intervantion_prob=0):
+             concept_form=None, task_form=None, device='cuda', corruption=0, intervention_prob=0):
     if concept_encoder!=None:
         concept_encoder.eval()
         concept_encoder.to(device)
@@ -30,24 +30,19 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
         if corruption>0:
             eps = torch.randn_like(x).to(device)
             x = eps * corruption + x * (1-corruption)
-        if intervantion_prob>0:
-            #c_int = torch.bernoulli(torch.ones_like(concept_labels)*intervantion_prob).to(device)
-            c_int = get_intervened_concepts_predictions(c_pred, concept_labels, intervantion_prob)
-        else: 
-            c_int = None
 
         if model=='e2e':
             y_pred = classifier(x)
         elif model=='cem':
-            c_emb, c_pred = concept_encoder(x, c_int, concept_labels, False)
+            c_emb, c_pred = concept_encoder(x, None, concept_labels, intervention_prob, False)
             y_pred = classifier(c_emb.flatten(start_dim=1))
         elif model=='aa_cem':
-            c_pred, c_emb, mu, logvar = concept_encoder(x, concept_labels)
+            c_pred, c_emb, mu, logvar = concept_encoder(x, concept_labels, intervention_prob)
             y_pred = classifier(c_emb.flatten(start_dim=1))
         elif 'cbm' in model:
             c_pred = concept_encoder(x)
-            if intervantion_prob>0:
-                c_pred = c_pred * (1-c_int) + concept_labels * c_int
+            if intervention_prob>0:
+                c_pred = get_intervened_concepts_predictions(c_pred, concept_labels, intervention_prob)
             y_pred = classifier(c_pred)
 
         D_kl = 0
@@ -64,18 +59,24 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
         if concept_encoder!=None:
             running_concept_loss += concept_loss.item()
         if model=='aa_cem':
+            '''
             prototype_emb_pos = concept_encoder.prototype_emb_pos
             prototype_emb_neg = concept_encoder.prototype_emb_neg
             cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, prototype_emb_pos.shape[-1])
             prototype_emb_pos = prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
             prototype_emb_neg = prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
             prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
-            D_kl = D_kl_gaussian(mu, logvar, prototype_emb)
+            '''
+            cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, concept_encoder.emb_size)
+            prototype_emb = cloned_c_pred * concept_encoder.prototype_emb_pos[None, :, :] + \
+                (1 - cloned_c_pred) * concept_encoder.prototype_emb_neg[None, :, :]
+            D_kl = D_kl_gaussian(mu, logvar, prototype_emb) * 1e-1
             running_d_kl_loss += D_kl.item()
 
         concept_preds = torch.cat([concept_preds, c_pred])
         y_pred = torch.where(y_pred>0,1,0) #y_pred.argmax(-1)
         true_concepts = torch.cat([true_concepts, concept_labels])
+        #print(c_embs.shape, c_emb.shape)
         c_embs = torch.cat([c_embs, c_emb])
         task_preds = torch.cat([task_preds, y_pred])
         real_labels = torch.cat([real_labels, y])
@@ -147,7 +148,7 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
                 y_pred = classifier(c_emb.flatten(start_dim=1))
             elif model=='aa_cem':
                 c_pred, c_emb, mu, logvar = concept_encoder(x, concept_labels)
-                y_pred = classifier(c_emb)
+                y_pred = classifier(c_emb.flatten(start_dim=1))
             elif 'cbm' in model:
                 c_pred = concept_encoder(x)
                 y_pred = classifier(c_pred)
@@ -170,13 +171,18 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
             elif model=='cem' or 'cbm' in model:
                 loss = concept_loss + task_loss
             elif model=='aa_cem':
+                '''
                 prototype_emb_pos = concept_encoder.prototype_emb_pos
                 prototype_emb_neg = concept_encoder.prototype_emb_neg
                 cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, prototype_emb_pos.shape[-1])
                 prototype_emb_pos = prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
                 prototype_emb_neg = prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
                 prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
-                D_kl = D_kl_gaussian(mu, logvar, prototype_emb)
+                '''
+                cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, concept_encoder.emb_size)
+                prototype_emb = cloned_c_pred * concept_encoder.prototype_emb_pos[None, :, :] + \
+                    (1 - cloned_c_pred) * concept_encoder.prototype_emb_neg[None, :, :]
+                D_kl = D_kl_gaussian(mu, logvar, prototype_emb) * 1e-1
                 running_d_kl_loss += D_kl.item()
                 loss = concept_loss + task_loss + D_kl
             loss.backward()
@@ -208,6 +214,3 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
 
     return concept_encoder, classifier, train_task_losses, train_concept_losses, D_kl_losses, val_task_losses, val_concept_losses, \
         val_D_kl_losses, y_preds, y, c_preds, c_true, c_emb
-
-
-

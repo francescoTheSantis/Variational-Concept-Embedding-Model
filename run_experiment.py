@@ -16,7 +16,7 @@ def main(args):
         os.makedirs(output_dir)
     print('Results will be saved to:', output_dir)
 
-    loaded_train, loaded_val, loaded_test = DataLoader(args.dataset, 32, 800, 100, 100).get_data_loaders()
+    loaded_train, loaded_val, loaded_test = DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
 
     if args.dataset == 'xor':
         in_features = 2
@@ -51,7 +51,7 @@ def main(args):
             nn.ReLU(),
             nn.Linear(args.emb_size*n_concepts, n_labels)
         )        
-        concept_encoder = AA_CEM(in_features, args.emb_size, 16)
+        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size)
     elif args.model == 'cbm_linear':
         classifier = nn.Sequential(
             nn.Linear(n_concepts, n_labels)
@@ -82,7 +82,7 @@ def main(args):
         'loaded_test': loaded_test,
         'concept_encoder': concept_encoder,
         'classifier': classifier,
-        'lr': 1e-3,
+        'lr': 5e-3,
         'epochs': args.epochs,
         'n_concepts': n_concepts,
         'step_size': 100,
@@ -144,7 +144,7 @@ def main(args):
         for eps in epss:
             params['corruption'] = eps
             for p_int in p_ints:
-                params['intervantion_prob'] = p_int
+                params['intervention_prob'] = p_int
                 _, _, _, y_preds, y, c_preds, c_true, c_emb = evaluate(**params)
                 task_f1, task_acc = f1_acc_metrics(y, y_preds)
                 # create a dictionary with the results
@@ -157,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, help='The name of the dataset')
     parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
     parser.add_argument('--model', type=str, default='linear', help='The model to use for the experiment')
+    parser.add_argument('--batch_size', type=int, default=128, help='The batch size to use for training')
     parser.add_argument('--epochs', type=int, default=10, help='Number of epochs to run')
     parser.add_argument('--device', type=str, default='cuda', help='The device to use for training')
     parser.add_argument('--output_dir', type=str, required=True, help='The output directory to save the results')

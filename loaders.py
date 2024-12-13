@@ -62,6 +62,7 @@ def _trigonometry(size, random_state=42):
     )
 
 
+'''
 def _dot(size, random_state=42):
     # sample from normal distribution
     emb_size = 2
@@ -89,6 +90,33 @@ def _dot(size, random_state=42):
         ['dotV1V2GreaterThan0', 'dotV3V4GreaterThan0'],
         ['dotV1V3GreaterThan0'],
     )
+'''
+
+def _dot(size, random_state=42):
+    np.random.seed(random_state)
+    # sample from normal distribution
+    emb_size = 2
+    # Generate the latent vectors
+    v1 = np.random.randn(size, emb_size) * 2
+    v2 = np.ones(emb_size)
+    v3 = np.random.randn(size, emb_size) * 2
+    v4 = -np.ones(emb_size)
+    # Generate the sample
+    x = np.hstack([v1+v3, v1-v3])
+    
+    # Now the concept vector
+    c = np.stack([
+        np.dot(v1, v2).ravel() > 0,
+        np.dot(v3, v4).ravel() > 0,
+    ]).T
+    # And finally the label
+    y = ((v1*v3).sum(axis=-1) > 0).astype(np.int64)
+
+    # We NEED to put all of these into torch Tensors (THIS IS VERY IMPORTANT)
+    x = torch.FloatTensor(x)
+    c = torch.FloatTensor(c)
+    y = torch.Tensor(y)
+    return (x, c, y, None, ['dotV1V2GreaterThan0', 'dotV3V4GreaterThan0'], ['dotV1V3GreaterThan0'])
 
 class ToyDataset(Dataset):
     def __init__(self, dataset: str, size: int, random_state: int = 42):
