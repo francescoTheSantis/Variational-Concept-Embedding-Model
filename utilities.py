@@ -19,6 +19,23 @@ def D_kl_gaussian(mu_q, logvar_q, mu_p):
     value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
     return value.mean()
 
+
+def get_intervened_concepts_predictions(c_pred, concept_labels, p_int):
+    # Find the indices where c_pred is not equal to concept_labels
+    incorrect_indices = (c_pred != concept_labels).nonzero(as_tuple=True)#[0]
+    if incorrect_indices[0].is_cuda:
+        incorrect_indices = [x.cpu() for x in incorrect_indices]
+    print(incorrect_indices)
+    # Randomly select indices with probability p_int
+    num_to_intervene = int(p_int * len(incorrect_indices))
+    if num_to_intervene > 0:
+        selected_indices = np.random.choice(incorrect_indices, num_to_intervene, replace=False)
+        #selected_indices = torch.tensor(selected_indices).to(device)
+        # Substitute the values in those indices with the true values in concept_labels
+        c_pred[selected_indices] = concept_labels[selected_indices]
+    return c_pred
+
+
 def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, d_kl, val_d_kl, output_folder=None):
 
     fig, axs = plt.subplots(1, 3, figsize=(14, 5))

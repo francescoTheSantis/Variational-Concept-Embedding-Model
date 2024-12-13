@@ -8,12 +8,16 @@ class AA_CEM(nn.Module):
         self.in_size = in_size
         self.n_concepts = n_concepts
         self.emb_size = emb_size
+        self.p_int = p_int
 
         # Initialize learnable prototypes
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
         self.prototype_emb_neg = nn.Parameter(torch.randn(n_concepts, emb_size))
 
         self.concept_scorers = nn.ModuleList()
+        self.layers = nn.ModuleList()
+        self.mu_layer = nn.ModuleList()
+        self.logvar_layer = nn.ModuleList()
         for _ in range(self.n_concepts):
             layers = nn.Sequential(
                 nn.Linear(self.in_size, self.in_size),
@@ -23,24 +27,26 @@ class AA_CEM(nn.Module):
             )
             self.concept_scorers.append(layers)
 
-        self.layers = nn.ModuleList()
-        for _ in range(self.n_concepts):
             layers = nn.Sequential(
                 nn.Linear(self.in_size + 1, self.in_size + 1),
                 nn.ReLU()
             )
             self.layers.append(layers)
 
-        self.mu_layer = nn.Linear(self.in_size + 1, self.emb_size)      
-        self.logvar_layer = nn.Linear(self.in_size + 1, self.emb_size)  
+            layers = nn.Sequential(nn.Linear(self.in_size + 1, self.emb_size))
+            self.mu_layer .append(layers)      
+
+            layers = nn.Sequential(nn.Linear(self.in_size + 1, self.emb_size))
+            self.logvar_layer.append(layers)
         
     def apply_intervention(self, c_pred, c_int, c_emb, device):
         cloned_c_pred = c_pred.detach().clone()
-        mask = torch.bernoulli(torch.full(cloned_c_pred.shape, self.p_int)).to(device)
+        mask = torch.bernoulli(torch.ones_like(cloned_c_pred) * self.p_int).to(device)
         cloned_c_pred = mask * c_int + cloned_c_pred * (1 - mask)
-        cloned_c_pred = cloned_c_pred.unsqueeze(-1).expand(-1, -1, prototype_emb_pos.shape[-1])
-        prototype_emb_pos = prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-        prototype_emb_neg = prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
+        cloned_c_pred = cloned_c_pred.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
+        prototype_emb_pos = self.prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
+        prototype_emb_neg = self.prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
+        print(cloned_c_pred.shape, prototype_emb_pos.shape, prototype_emb_neg.shape)
         prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
         c_emb = mask * prototype_emb + (1 - mask) * c_emb
         return c_pred
@@ -61,9 +67,9 @@ class AA_CEM(nn.Module):
             c_pred = self.concept_scorers[i](x) 
             # apply intervention
             #c_pred = self.apply_intervention(c_pred, c_int[:,i,:], device)
-            emb = self.layers(torch.cat([x, c_pred.unsqueeze(-1)], dim=-1))
-            mu = self.mu_layer(emb)
-            logvar = self.logvar_layer(emb)
+            emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
+            mu = self.mu_layer[i](emb)
+            logvar = self.logvar_layer[i](emb)
             # during training we sample from the multivariate normal distribution, at test-time we take MAP.
             if self.training:
                 c_emb = self.reparameterize(mu, logvar)

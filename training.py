@@ -2,11 +2,11 @@ import torch
 from torch import nn
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
-from utilities import D_kl_gaussian
+from utilities import D_kl_gaussian, get_intervened_concepts_predictions
     
 @torch.no_grad()
 def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_size,
-             concept_form=None, task_form=None, device='cuda', corruption=0):
+             concept_form=None, task_form=None, device='cuda', corruption=0, intervantion_prob=0):
     if concept_encoder!=None:
         concept_encoder.eval()
         concept_encoder.to(device)
@@ -30,17 +30,24 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
         if corruption>0:
             eps = torch.randn_like(x).to(device)
             x = eps * corruption + x * (1-corruption)
+        if intervantion_prob>0:
+            #c_int = torch.bernoulli(torch.ones_like(concept_labels)*intervantion_prob).to(device)
+            c_int = get_intervened_concepts_predictions(c_pred, concept_labels, intervantion_prob)
+        else: 
+            c_int = None
 
         if model=='e2e':
             y_pred = classifier(x)
         elif model=='cem':
-            c_pred, c_emb = concept_encoder(x, None, concept_labels, train)
-            y_pred = classifier(c_emb)
+            c_emb, c_pred = concept_encoder(x, c_int, concept_labels, False)
+            y_pred = classifier(c_emb.flatten(start_dim=1))
         elif model=='aa_cem':
             c_pred, c_emb, mu, logvar = concept_encoder(x, concept_labels)
-            y_pred = classifier(c_emb)
+            y_pred = classifier(c_emb.flatten(start_dim=1))
         elif 'cbm' in model:
             c_pred = concept_encoder(x)
+            if intervantion_prob>0:
+                c_pred = c_pred * (1-c_int) + concept_labels * c_int
             y_pred = classifier(c_pred)
 
         D_kl = 0
@@ -136,8 +143,8 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
             if model=='e2e':
                 y_pred = classifier(x)
             elif model=='cem':
-                c_pred, c_emb = concept_encoder(x, None, concept_labels, train)
-                y_pred = classifier(c_emb)
+                c_emb, c_pred = concept_encoder(x, None, concept_labels, True)
+                y_pred = classifier(c_emb.flatten(start_dim=1))
             elif model=='aa_cem':
                 c_pred, c_emb, mu, logvar = concept_encoder(x, concept_labels)
                 y_pred = classifier(c_emb)

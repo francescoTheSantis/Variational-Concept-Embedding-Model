@@ -5,9 +5,10 @@ from training import *
 from utilities import *
 import os
 import csv
+import pandas as pd
+import torch.nn as nn
 
 def main(args):
-
     set_seed(args.seed)
     output_dir = os.path.join(args.output_dir, str(args.seed), args.dataset, args.model) 
     if not os.path.exists(output_dir):
@@ -39,16 +40,16 @@ def main(args):
         concept_encoder = None
     elif args.model == 'cem':
         classifier = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(args.emb_size*n_concepts, args.emb_size*n_concepts),
             nn.ReLU(),
-            nn.Linear(16, n_labels)
+            nn.Linear(args.emb_size*n_concepts, n_labels)
         )        
-        concept_encoder = ConceptEmbedding(in_features, args.emb_size, 16)
+        concept_encoder = ConceptEmbedding(in_features, n_concepts, args.emb_size)
     elif args.model == 'aa_cem':
         classifier = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(args.emb_size*n_concepts, args.emb_size*n_concepts),
             nn.ReLU(),
-            nn.Linear(16, n_labels)
+            nn.Linear(args.emb_size*n_concepts, n_labels)
         )        
         concept_encoder = AA_CEM(in_features, args.emb_size, 16)
     elif args.model == 'cbm_linear':
@@ -120,15 +121,36 @@ def main(args):
         writer.writerow(['concept', concept_f1, concept_acc])
     print(f'Metrics saved to {csv_file_path}')
 
-    # now we gradually increase the noise in the input featrues and perform interventions
-    # create a numpy array that start from 0 and goes to 1 with step 0.1
-    '''
-    params['test'] = True
-    epss = np.arange(0, 1.1, 0.1)
-    for eps in epss:
-        params['corruption'] = eps
-    '''
-        
+    # now we gradually increase the noise in the input features and perform interventions
+    if args.model != 'e2e':
+        intervention_df = pd.DataFrame(columns=['noise', 'p_int', 'f1', 'accuracy'])
+        params = {
+            'model': args.model,
+            'concept_encoder': concept_encoder,
+            'classifier': classifier,
+            'loaded_set': loaded_test,
+            'n_concepts': n_concepts,
+            'emb_size': args.emb_size,
+            'concept_form': nn.BCELoss(),
+            'task_form': nn.BCEWithLogitsLoss(),
+            'device': 'cuda',
+        }
+        interventions_dir = os.path.join(output_dir, 'interventions')
+        if not os.path.exists(interventions_dir):
+            os.makedirs(interventions_dir)
+        csv_file_path = os.path.join(interventions_dir, 'metrics.csv')
+        epss = [0, 0.25, 0.5, 0.75, 1]
+        p_ints = np.arange(0, 1.1, 0.1)
+        for eps in epss:
+            params['corruption'] = eps
+            for p_int in p_ints:
+                params['intervantion_prob'] = p_int
+                _, _, _, y_preds, y, c_preds, c_true, c_emb = evaluate(**params)
+                task_f1, task_acc = f1_acc_metrics(y, y_preds)
+                # create a dictionary with the results
+                intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
+                intervention_df = intervention_df.append(intervention_results, ignore_index=True)
+        intervention_df.to_csv(csv_file_path, index=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run experiment")
