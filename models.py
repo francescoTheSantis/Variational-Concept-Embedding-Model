@@ -64,14 +64,22 @@ class AA_CEM(nn.Module):
             emb = self.layers(torch.cat([x, c_pred.unsqueeze(-1)], dim=-1))
             mu = self.mu_layer(emb)
             logvar = self.logvar_layer(emb)
-            c_emb = self.reparameterize(mu, logvar)
+            # during training we sample from the multivariate normal distribution, at test-time we take MAP.
+            if self.training:
+                c_emb = self.reparameterize(mu, logvar)
+            else:
+                c_emb = mu
             # apply prototype interventions
             c_emb = self.apply_intervention(c_pred, c_int, c_emb, device)
             c_emb_list.append(c_emb)
             c_pred_list.append(c_pred.unsqueeze(1))
+            mu_list.append(mu.unsqueeze(1))
+            logvar_list.append(logvar.unsqueeze(1))
         
         c_emb = torch.cat(c_emb_list, dim=1) # (batch_size, n_concepts, emb_size)
         c_pred = torch.cat(c_pred_list, dim=1) # (batch_size, n_concepts, n_states)
+        mu = torch.cat(mu_list, dim=1)
+        logvar = torch.cat(logvar_list, dim=1)
         
         return c_pred, c_emb, mu, logvar
 

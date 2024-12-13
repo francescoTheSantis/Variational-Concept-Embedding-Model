@@ -9,7 +9,7 @@ import csv
 def main(args):
 
     set_seed(args.seed)
-    output_dir = os.path.join(args.output_dir, str(args.seed), args.dataset, args.classifier) 
+    output_dir = os.path.join(args.output_dir, str(args.seed), args.dataset, args.model) 
     if not os.path.exists(output_dir):
         print('Results folder created')
         os.makedirs(output_dir)
@@ -30,28 +30,28 @@ def main(args):
         n_concepts = 2
         n_labels = 1
 
-    if args.classifier == 'e2e':
+    if args.model == 'e2e':
         classifier = nn.Sequential(
             nn.Linear(in_features, 16),
             nn.ReLU(),
             nn.Linear(16, n_labels)
         )
         concept_encoder = None
-    elif args.classifier == 'cem':
+    elif args.model == 'cem':
         classifier = nn.Sequential(
             nn.Linear(in_features, 16),
             nn.ReLU(),
             nn.Linear(16, n_labels)
         )        
-        concept_encoder = ConceptEmbedding(in_features, args.concept_size, 16)
-    elif args.classifier == 'aa_cem':
+        concept_encoder = ConceptEmbedding(in_features, args.emb_size, 16)
+    elif args.model == 'aa_cem':
         classifier = nn.Sequential(
             nn.Linear(in_features, 16),
             nn.ReLU(),
             nn.Linear(16, n_labels)
         )        
-        concept_encoder = AA_CEM(in_features, args.concept_size, 16)
-    elif args.classifier == 'cbm_linear':
+        concept_encoder = AA_CEM(in_features, args.emb_size, 16)
+    elif args.model == 'cbm_linear':
         classifier = nn.Sequential(
             nn.Linear(n_concepts, n_labels)
         )
@@ -61,7 +61,7 @@ def main(args):
             nn.Linear(16, n_concepts),
             nn.Sigmoid()
         ) 
-    elif args.classifier == 'cbm_mlp':
+    elif args.model == 'cbm_mlp':
         classifier = nn.Sequential(
             nn.Linear(in_features, 16),
             nn.ReLU(),
@@ -81,16 +81,17 @@ def main(args):
         'loaded_test': loaded_test,
         'concept_encoder': concept_encoder,
         'classifier': classifier,
-        'lr': 1e-4,
+        'lr': 1e-3,
         'epochs': args.epochs,
-        'n_labels': 1,
         'n_concepts': n_concepts,
-        'step_size': 5,
+        'step_size': 100,
         'gamma': 0.1,
-        'device': args.device
+        'device': args.device,
+        'emb_size': args.emb_size,
+        'test': False
     }
     
-    concept_encoder, classifier, train_task_losses, train_concept_losses, val_task_losses, val_concept_losses, y_preds, y, c_preds, c_true = train(**params)
+    concept_encoder, classifier, train_task_losses, train_concept_losses, D_kl_losses, val_task_losses, val_concept_losses, D_kl_losses_val, y_preds, y, c_preds, c_true, c_emb = train(**params)
     
     if args.model != 'e2e':
         concept_encoder_save_path = os.path.join(output_dir, 'concepot_encoder.pth')
@@ -99,12 +100,12 @@ def main(args):
     torch.save(classifier.state_dict(), classifier_save_path)
     print(f'Models saved to {output_dir}')  
 
-    plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, output_dir)
+    plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, D_kl_losses, D_kl_losses_val, output_dir)
     task_f1, task_acc = f1_acc_metrics(y, y_preds)
     concept_f1, concept_acc = 0, 0
-    if args.classifier != 'e2e':
+    if args.model != 'e2e':
         for i in range(n_concepts):
-            f1, acc = f1_acc_metrics(c_true[i], c_preds[i])
+            f1, acc = f1_acc_metrics(c_true[i], torch.where(c_preds[i]>0.5,1,0))
             concept_f1 += f1
             concept_acc += acc
         concept_f1 /= n_concepts
@@ -120,13 +121,19 @@ def main(args):
     print(f'Metrics saved to {csv_file_path}')
 
     # now we gradually increase the noise in the input featrues and perform interventions
-    
+    # create a numpy array that start from 0 and goes to 1 with step 0.1
+    '''
+    params['test'] = True
+    epss = np.arange(0, 1.1, 0.1)
+    for eps in epss:
+        params['corruption'] = eps
+    '''
+        
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run experiment")
-    parser.add_argument('--folder', type=str, required=True, help='The folder containing the dataset')
     parser.add_argument('--dataset', type=str, help='The name of the dataset')
-    parser.add_argument('--concept_size', type=int, default=16, help='The size of the concept embeddings')  
+    parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
     parser.add_argument('--model', type=str, default='linear', help='The model to use for the experiment')
     parser.add_argument('--epochs', type=int, default=10, help='Number of epochs to run')
     parser.add_argument('--device', type=str, default='cuda', help='The device to use for training')

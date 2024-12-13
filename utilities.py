@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score, accuracy_score
 import torch
 import numpy as np
-import scienceplots
+#import scienceplots
 import warnings
 warnings.filterwarnings("ignore")
 
-plt.style.use(['science', 'ieee'])
+#plt.style.use(['science', 'ieee'])
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -19,9 +19,9 @@ def D_kl_gaussian(mu_q, logvar_q, mu_p):
     value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
     return value.mean()
 
-def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, output_folder=None):
+def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, d_kl, val_d_kl, output_folder=None):
 
-    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+    fig, axs = plt.subplots(1, 3, figsize=(14, 5))
 
     # Plot task training and validation losses
     axs[0].plot(train_task_losses, label='Train Task Loss')
@@ -38,6 +38,14 @@ def plot_training_curves(train_task_losses, val_task_losses, train_concept_losse
     axs[1].set_ylabel('Loss')
     axs[1].set_title('Concept Training and Validation Loss')
     axs[1].legend()
+
+    # Plot KL divergence training and validation losses
+    axs[2].plot(d_kl, label='Train KL Divergence')
+    axs[2].plot(val_d_kl, label='Validation KL Divergence')
+    axs[2].set_xlabel('Epochs')
+    axs[2].set_ylabel('Loss')
+    axs[2].set_title('KL Divergence Training and Validation Loss')
+    axs[2].legend()
 
     # Save the figure
     fig.tight_layout()
