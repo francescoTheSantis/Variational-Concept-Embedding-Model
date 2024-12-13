@@ -87,7 +87,6 @@ def main(args):
         'n_concepts': n_concepts,
         'step_size': 5,
         'gamma': 0.1,
-        'lambda_coeff': 1,
         'device': args.device
     }
     

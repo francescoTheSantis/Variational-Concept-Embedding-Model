@@ -7,7 +7,6 @@ from torch.utils.data import Dataset
 #from sklearn.preprocessing import StandardScaler
 #from sklearn.datasets import make_spd_matrix, make_low_rank_matrix
 
-
 def _xor(size, random_state=42):
     # sample from uniform distribution
     np.random.seed(random_state)

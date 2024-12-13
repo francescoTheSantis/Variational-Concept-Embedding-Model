@@ -3,103 +3,77 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class AA_CEM(nn.Module):
-    def __init__(self, embedding_size, n_concepts, concept_size, classifier, n_labels, p_int=0.1):
+    def __init__(self, in_size, n_concepts, emb_size, p_int=0):
         super(AA_CEM, self).__init__()
-        self.embedding_size = embedding_size
+        self.in_size = in_size
         self.n_concepts = n_concepts
-        self.concept_size = concept_size
-        self.classifier = classifier
-        self.n_labels = n_labels
-        self.p_int = p_int
+        self.emb_size = emb_size
 
-        self.concept_embedding_layers = nn.ModuleList()
-        for i in range(self.n_concepts):
-            layers = nn.Sequential(
-                nn.Linear(self.embedding_size, self.concept_size),
-                nn.ReLU(),
-                nn.Linear(self.concept_size, self.concept_size),
-                nn.LeakyReLU(0.1)
-            )
-            self.concept_embedding_layers.append(layers)
-        
+        # Initialize learnable prototypes
+        self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
+        self.prototype_emb_neg = nn.Parameter(torch.randn(n_concepts, emb_size))
+
         self.concept_scorers = nn.ModuleList()
-        for i in range(self.n_concepts):
+        for _ in range(self.n_concepts):
             layers = nn.Sequential(
-                nn.Linear(self.concept_states[i] * self.concept_size, self.concept_states[i] * self.concept_size),
+                nn.Linear(self.in_size, self.in_size),
                 nn.ReLU(),
-                nn.Linear(self.concept_states[i] * self.concept_size, self.concept_states[i]),
-                nn.Softmax(dim=1)
+                nn.Linear(self.in_size, 1),
+                nn.Sigmoid()
             )
             self.concept_scorers.append(layers)
 
-        if self.classifier == 'linear':
-            self.weights_generator = torch.nn.ModuleList()
-            for i in range(self.n_labels):
-                self.weights_generator.append(
-                    nn.Sequential(
-                        nn.Linear(self.concept_size, self.concept_size), 
-                        nn.ReLU(), 
-                        nn.Linear(self.concept_size, 1)
-                    )
-                )  
-        elif self.classifier == 'cem':
-            self.mlp = nn.Sequential(
-                nn.Linear(self.n_concepts * self.concept_size, self.n_concepts * self.concept_size),
-                nn.ReLU(),
-                nn.Linear(self.n_concepts * self.concept_size, self.n_labels)
+        self.layers = nn.ModuleList()
+        for _ in range(self.n_concepts):
+            layers = nn.Sequential(
+                nn.Linear(self.in_size + 1, self.in_size + 1),
+                nn.ReLU()
             )
-        else:
-            raise ValueError('Invalid classifier type')
+            self.layers.append(layers)
 
-    def apply_intervention(self, c_pred, c_int, device):
-        mask = torch.bernoulli(torch.full(c_pred.shape, self.p_int)).to(device)
-        c_pred = c_pred * (1 - mask) + c_int * mask
+        self.mu_layer = nn.Linear(self.in_size + 1, self.emb_size)      
+        self.logvar_layer = nn.Linear(self.in_size + 1, self.emb_size)  
+        
+    def apply_intervention(self, c_pred, c_int, c_emb, device):
+        cloned_c_pred = c_pred.detach().clone()
+        mask = torch.bernoulli(torch.full(cloned_c_pred.shape, self.p_int)).to(device)
+        cloned_c_pred = mask * c_int + cloned_c_pred * (1 - mask)
+        cloned_c_pred = cloned_c_pred.unsqueeze(-1).expand(-1, -1, prototype_emb_pos.shape[-1])
+        prototype_emb_pos = prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
+        prototype_emb_neg = prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
+        prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
+        c_emb = mask * prototype_emb + (1 - mask) * c_emb
         return c_pred
     
-    def reparameterize(self, mu, log_var):
+
+    def reparameterize(self, mu, logvar):
         # Compute the standard deviation from the log variance
-        std = torch.exp(0.5 * log_var)
+        std = torch.exp(0.5 * logvar)
         # Generate random noise using the same shape as std
         eps = torch.randn_like(std)
         # Return the reparameterized sample
         return mu + eps * std
     
-    def forward(self, sentence_batch, c_int, device='cuda'):
-        x = self.encoder(sentence_batch['input_ids'].squeeze().to(torch.long).to(device), 
-                         sentence_batch['attention_mask'].squeeze().to(torch.long).to(device), 
-                         output_hidden_states=True).hidden_states[-1][:,0,:]
-        
+    def forward(self, x, c_int=None, device='cuda'):
         bsz = x.shape[0]
-
-        c_pred_list, c_emb_list = [], []
-        c_int  = c_int.view(-1, self.n_concepts, self.concept_states[0]) # (batch_size, n_concepts, n_states)
+        c_pred_list, c_emb_list, mu_list, logvar_list = [], [], [], []
         for i in range(self.n_concepts):
-            c_emb = self.concept_embedding_layers[i](x) # (batch_size, n_states * emb_size)
-            c_pred = self.concept_scorers[i](c_emb) # (batch_size, n_states)
+            c_pred = self.concept_scorers[i](x) 
             # apply intervention
-            c_pred = self.apply_intervention(c_pred, c_int[:,i,:], device)
-            c_emb = c_emb.view(-1, self.concept_states[i], self.concept_size) # (batch_size, n_states, emb_size)
-            c_emb = torch.bmm(c_pred.unsqueeze(1), c_emb) # (batch_size, emb_size)
+            #c_pred = self.apply_intervention(c_pred, c_int[:,i,:], device)
+            emb = self.layers(torch.cat([x, c_pred.unsqueeze(-1)], dim=-1))
+            mu = self.mu_layer(emb)
+            logvar = self.logvar_layer(emb)
+            c_emb = self.reparameterize(mu, logvar)
+            # apply prototype interventions
+            c_emb = self.apply_intervention(c_pred, c_int, c_emb, device)
             c_emb_list.append(c_emb)
             c_pred_list.append(c_pred.unsqueeze(1))
         
         c_emb = torch.cat(c_emb_list, dim=1) # (batch_size, n_concepts, emb_size)
         c_pred = torch.cat(c_pred_list, dim=1) # (batch_size, n_concepts, n_states)
         
-        if self.classifier == 'linear':
-            y = torch.zeros(bsz, self.n_labels).to(device)
-            logits = torch.zeros(bsz, self.n_concepts, self.n_labels).to(device)
-            for i in range(self.n_labels):
-                weights = self.weights_generator[i](c_emb) # batch, n_concepts, 1
-                y[:,i] = torch.bmm(c_pred.max(-1).values.unsqueeze(1), weights).squeeze() 
-                logits[:, :, i] = weights.squeeze() * c_pred.max(-1).values    
-            return y, logits, c_emb, c_pred
-        elif self.classifier == 'cem':
-            logits = torch.zeros(bsz, self.n_concepts, self.n_labels).to(device)
-            y = self.mlp(c_emb.view(bsz, -1))
-            return y, logits, c_emb, c_pred
-        else:   
-            raise ValueError('Invalid classifier type')
+        return c_pred, c_emb, mu, logvar
 
              
 
