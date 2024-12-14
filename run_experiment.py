@@ -6,7 +6,7 @@ from utilities import *
 import os
 import csv
 import pandas as pd
-import torch.nn as nn
+#import torch.nn as nn
 
 def main(args):
     set_seed(args.seed)
@@ -18,7 +18,7 @@ def main(args):
 
     loaded_train, loaded_val, loaded_test = DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
 
-    if args.dataset == 'xor':
+    if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
         n_concepts = 2
         n_labels = 1
@@ -30,6 +30,10 @@ def main(args):
         in_features = 4
         n_concepts = 2
         n_labels = 1
+    elif args.dataset == 'celeba':
+        in_features = 4
+        n_concepts = 40
+        n_labels = 1        
 
     if args.model == 'e2e':
         classifier = nn.Sequential(
@@ -64,7 +68,7 @@ def main(args):
         ) 
     elif args.model == 'cbm_mlp':
         classifier = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(n_concepts, 16),
             nn.ReLU(),
             nn.Linear(16, n_labels)
         )

@@ -53,6 +53,7 @@ class AA_CEM(nn.Module):
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
         c_int = c_int.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
         cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
+        cloned_c_pred = torch.where(cloned_c_pred>0.5,1,0)
         prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
         prototype_emb = prototype_emb[:,concept_idx,:]
         c_int = c_int.squeeze()

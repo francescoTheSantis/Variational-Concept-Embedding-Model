@@ -3,11 +3,8 @@ from typing import List
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-#from numpy.random import multivariate_normal, uniform
-#from sklearn.preprocessing import StandardScaler
-#from sklearn.datasets import make_spd_matrix, make_low_rank_matrix
 
-def _xor(size, random_state=42):
+def _boolean_op(size, operator, random_state=42):
     # sample from uniform distribution
     np.random.seed(random_state)
     x = np.random.uniform(0, 1, (size, 2))
@@ -15,12 +12,18 @@ def _xor(size, random_state=42):
         x[:, 0] > 0.5,
         x[:, 1] > 0.5,
     ]).T
-    y = np.logical_xor(c[:, 0], c[:, 1])
+
+    if operator == 'xor':
+        y = np.logical_xor(c[:, 0], c[:, 1])
+    elif operator == 'and':
+        y = np.logical_and(c[:, 0], c[:, 1])
+    elif operator == 'or':
+        y = np.logical_or(c[:, 0], c[:, 1])
 
     x = torch.FloatTensor(x)
     c = torch.FloatTensor(c)
     y = torch.FloatTensor(y)
-    return x, c, y.unsqueeze(-1), None, ['C1', 'C2'], ['xor']
+    return x, c, y.unsqueeze(-1), None, ['C1', 'C2'], [operator]
 
 
 def _trigonometry(size, random_state=42):
@@ -60,37 +63,6 @@ def _trigonometry(size, random_state=42):
         ['C1', 'C2', 'C3'],
         ['sumGreaterThan1'],
     )
-
-
-'''
-def _dot(size, random_state=42):
-    # sample from normal distribution
-    emb_size = 2
-    np.random.seed(random_state)
-    v1 = np.random.randn(size, emb_size) * 2
-    v2 = np.ones(emb_size)
-    np.random.seed(random_state)
-    v3 = np.random.randn(size, emb_size) * 2
-    v4 = -np.ones(emb_size)
-    x = np.hstack([v1+v3, v1-v3])
-    c = np.stack([
-        np.dot(v1, v2).ravel() > 0,
-        np.dot(v3, v4).ravel() > 0,
-    ]).T
-    y = ((v1*v3).sum(axis=-1) > 0).astype(np.int64)
-
-    x = torch.FloatTensor(x)
-    c = torch.FloatTensor(c)
-    y = torch.Tensor(y)
-    return (
-        x,
-        c,
-        y.unsqueeze(-1),
-        None,
-        ['dotV1V2GreaterThan0', 'dotV3V4GreaterThan0'],
-        ['dotV1V3GreaterThan0'],
-    )
-'''
 
 def _dot(size, random_state=42):
     np.random.seed(random_state)
@@ -132,8 +104,8 @@ class ToyDataset(Dataset):
         ) = self._load_data(dataset)
 
     def _load_data(self, dataset):
-        if dataset == 'xor':
-            return _xor(self.size, self.random_state)
+        if dataset in ['xor','and','or']:
+            return _boolean_op(self.size, dataset, self.random_state)
         elif dataset == 'trigonometry':
             return _trigonometry(self.size, self.random_state)
         elif dataset == 'dot':
@@ -151,6 +123,74 @@ class ToyDataset(Dataset):
         return data, concept_label, target_label
 
 
+class CelebADataset(CelebA):
+    """
+    The CelebA dataset is a large-scale face attributes dataset with more than
+    200K celebrity images, each with 40 attribute annotations. This class
+    extends the CelebA dataset to extract concept and task attributes based on
+    class attributes.
+
+    The dataset can be downloaded from the official
+    website: http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html.
+
+    Attributes:
+        root: The root directory where the dataset is stored.
+        split: The split of the dataset to use. Default is 'train'.
+        transform: The transformations to apply to the images. Default is None.
+        download: Whether to download the dataset if it does not exist. Default
+            is False.
+        class_attributes: The class attributes to use for the task. Default is
+            None.
+    """
+    def __init__(
+        self, root: str, split: str = 'train',
+        transform = None,
+        download: bool = False,
+        class_attributes: List[str] = None,
+    ):
+        super(CelebADataset, self).__init__(
+            root,
+            split=split,
+            target_type="attr",
+            transform=transform,
+            download=download,
+        )
+
+        # Set the class attributes
+        if class_attributes is None:
+            # Default to 'Attractive' if no class_attributes provided
+            self.class_idx = [self.attr_names.index('Attractive')]
+        else:
+            # Use the provided class attributes
+            self.class_idx = [
+                self.attr_names.index(attr) for attr in class_attributes
+            ]
+
+        self.attr_names = [string for string in self.attr_names if string]
+
+        # Determine concept and task attribute names based on class attributes
+        self.concept_attr_names = [
+            attr for i, attr in enumerate(self.attr_names)
+            if i not in self.class_idx
+        ]
+        self.task_attr_names = [self.attr_names[i] for i in self.class_idx]
+
+    def __getitem__(self, index: int):
+        image, attributes = super(CelebADataset, self).__getitem__(index)
+
+        # Extract the target (y) based on the class index
+        y = torch.stack([attributes[i] for i in self.class_idx])
+
+        # Extract concept attributes, excluding the class attributes
+        concept_attributes = torch.stack([
+            attributes[i] for i in range(len(attributes))
+            if i not in self.class_idx
+        ])
+
+        return image, concept_attributes, y
+
+
+
 # create a class that, given the specific cusotm dataset above, generates the train,val and test splits (batched)
 # and returns the dataloaders for each split
 class DataLoader:
@@ -164,14 +204,32 @@ class DataLoader:
 
     def get_data_loaders(self):
         # create the dataset
-        dataset = ToyDataset(self.dataset, self.train_size + self.val_size + self.test_size, self.random_state)
-        # split the dataset
-        train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
-            dataset, [self.train_size, self.val_size, self.test_size],
-            generator=torch.Generator().manual_seed(self.random_state)
-        )
+        if self.dataset == 'celeba':
+            train_dataset = CelebADataset(
+                root='data', split='train', download=True,
+                class_attributes=['Attractive']
+            )
+            train_dataset = CelebADataset(
+                root='data', split='valid', download=True,
+                class_attributes=['Attractive']
+            )
+            train_dataset = CelebADataset(
+                root='data', split='test', download=True,
+                class_attributes=['Attractive']
+            )
+        else:
+            dataset = ToyDataset(self.dataset, self.train_size + self.val_size + self.test_size, self.random_state)
+            # split the dataset
+            train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+                dataset, [self.train_size, self.val_size, self.test_size],
+                generator=torch.Generator().manual_seed(self.random_state)
+            )
         # create the dataloaders
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
         return train_loader, val_loader, test_loader
+
+
+
+
