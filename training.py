@@ -73,7 +73,7 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
             cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, concept_encoder.emb_size)
             prototype_emb = cloned_c_pred * concept_encoder.prototype_emb_pos[None, :, :] + \
                 (1 - cloned_c_pred) * concept_encoder.prototype_emb_neg[None, :, :]
-            D_kl = D_kl_gaussian(mu, logvar, prototype_emb) * kl_penalty
+            D_kl = D_kl_gaussian(mu, logvar, prototype_emb, concept_encoder.predict_var) * kl_penalty
             running_d_kl_loss += D_kl.item()
 
         concept_preds = torch.cat([concept_preds, c_pred])
@@ -164,7 +164,8 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
                 concept_loss /= n_concepts  
 
             y_pred = y_pred.squeeze()        
-            y = y.squeeze()  
+            y = y.squeeze() 
+
             task_loss = task_form(y_pred, y)  
             running_task_loss += task_loss.item()
             if concept_encoder!=None:
@@ -185,7 +186,7 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
                 cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, concept_encoder.emb_size)
                 prototype_emb = cloned_c_pred * concept_encoder.prototype_emb_pos[None, :, :] + \
                     (1 - cloned_c_pred) * concept_encoder.prototype_emb_neg[None, :, :]
-                D_kl = D_kl_gaussian(mu, logvar, prototype_emb) * kl_penalty
+                D_kl = D_kl_gaussian(mu, logvar, prototype_emb, concept_encoder.predict_var) * kl_penalty
                 running_d_kl_loss += D_kl.item()
                 loss = concept_loss + task_loss + D_kl
             loss.backward()

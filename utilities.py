@@ -15,8 +15,11 @@ def set_seed(seed):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed) 
 
-def D_kl_gaussian(mu_q, logvar_q, mu_p):
-    value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
+def D_kl_gaussian(mu_q, logvar_q, mu_p, penalize_var=False):
+    if penalize_var:
+        value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
+    else:
+        value = -0.5 * torch.sum((mu_q - mu_p).pow(2), dim=-1)
     return value.mean()
 
 

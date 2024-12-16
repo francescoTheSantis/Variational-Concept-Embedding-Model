@@ -1,12 +1,12 @@
 import argparse
-from loaders import *
+from toy_loaders import *
 from models import *
 from training import *
 from utilities import *
 import os
 import csv
 import pandas as pd
-#import torch.nn as nn
+from text_loaders import *
 
 def main(args):
     set_seed(args.seed)
@@ -16,7 +16,22 @@ def main(args):
         os.makedirs(output_dir)
     print('Results will be saved to:', output_dir)
 
-    loaded_train, loaded_val, loaded_test = DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
+    if args.dataset in ['xor', 'and', 'or', 'trigonometry', 'dot']:
+        loaded_train, loaded_val, loaded_test = DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
+    elif args.dataset == 'cebab':
+        train_dataset = CEBABDataset('train')
+        val_dataset = CEBABDataset('validation')
+        test_dataset = CEBABDataset('test')
+        loaded_train = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+        loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+        loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+    elif args.dataset == 'imdb':
+        train_dataset = IMDBDataset('train')
+        val_dataset = IMDBDataset('validation')
+        test_dataset = IMDBDataset('test')
+        loaded_train = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+        loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+        loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
 
     if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
@@ -29,11 +44,15 @@ def main(args):
     elif args.dataset == 'dot':
         in_features = 4
         n_concepts = 2
+        n_labels = 1    
+    elif args.dataset == 'cebab':
+        in_features = 384
+        n_concepts = 4
         n_labels = 1
-    elif args.dataset == 'celeba':
-        in_features = 4
-        n_concepts = 40
-        n_labels = 1        
+    elif args.dataset == 'imdb':
+        in_features = 384
+        n_concepts = 8
+        n_labels = 1
 
     if args.model == 'e2e':
         classifier = nn.Sequential(

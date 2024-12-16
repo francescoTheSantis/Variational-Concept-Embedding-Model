@@ -4,11 +4,12 @@ import torch.nn.functional as F
 from utilities import get_intervened_concepts_predictions
 
 class AA_CEM(nn.Module):
-    def __init__(self, in_size, n_concepts, emb_size):
+    def __init__(self, in_size, n_concepts, emb_size, predict_var=False):
         super(AA_CEM, self).__init__()
         self.in_size = in_size
         self.n_concepts = n_concepts
         self.emb_size = emb_size
+        self.predict_var = predict_var
 
         # Initialize learnable prototypes
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -33,22 +34,10 @@ class AA_CEM(nn.Module):
             )
             self.layers.append(layers)
 
-            self.mu_layer.append(nn.Linear(self.in_size + 1, self.emb_size))      
-            self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
-        
-    '''
-    def apply_intervention(self, c_pred, labels, mask, c_emb, device):
-        #cloned_c_pred = c_pred.detach().clone()
-        #mask = torch.bernoulli(torch.ones_like(cloned_c_pred) * self.p_int).to(device)
-        cloned_c_pred = mask * labels + cloned_c_pred * (1 - mask)
-        cloned_c_pred = cloned_c_pred.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
-        prototype_emb_pos = self.prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-        prototype_emb_neg = self.prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-        #print(cloned_c_pred.shape, prototype_emb_pos.shape, prototype_emb_neg.shape)
-        prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
-        c_emb = mask * prototype_emb + (1 - mask) * c_emb
-        return c_pred
-    '''
+            self.mu_layer.append(nn.Linear(self.in_size + 1, self.emb_size))  
+
+            if self.predict_var:    
+                self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
 
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
         c_int = c_int.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
@@ -57,17 +46,12 @@ class AA_CEM(nn.Module):
         prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
         prototype_emb = prototype_emb[:,concept_idx,:]
         c_int = c_int.squeeze()
-        #print(c_int.shape, prototype_emb.shape, c_emb.shape)
         int_emb = c_int * prototype_emb + (1 - c_int) * c_emb
-        #print(int_emb.shape)
         return int_emb
 
     def reparameterize(self, mu, logvar):
-        # Compute the standard deviation from the log variance
         std = torch.exp(0.5 * logvar)
-        # Generate random noise using the same shape as std
         eps = torch.randn_like(std)
-        # Return the reparameterized sample
         return mu + eps * std
     
     def forward(self, x, c=None, p_int=0, device='cuda'):
@@ -79,7 +63,10 @@ class AA_CEM(nn.Module):
             #c_pred = self.apply_intervention(c_pred, c_int[:,i,:], device)
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
-            logvar = self.logvar_layer[i](emb)
+            if self.predict_var:
+                logvar = self.logvar_layer[i](emb)
+            else:
+                logvar = torch.zeros_like(mu)
             # during training we sample from the multivariate normal distribution, at test-time we take MAP.
             if self.training:
                 c_emb = self.reparameterize(mu, logvar)
