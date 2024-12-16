@@ -14,10 +14,18 @@ def main(args):
     if not os.path.exists(output_dir):
         print('Results folder created')
         os.makedirs(output_dir)
+    else:
+        if not os.listdir(output_dir):
+            print('Results folder exists but is empty.')
+        else:
+            print('Results folder exists and is not empty. The experiment has already been executed!')
+            return
     print('Results will be saved to:', output_dir)
 
+
+
     if args.dataset in ['xor', 'and', 'or', 'trigonometry', 'dot']:
-        loaded_train, loaded_val, loaded_test = DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
+        loaded_train, loaded_val, loaded_test = Toy_DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
     elif args.dataset == 'cebab':
         train_dataset = CEBABDataset('train')
         val_dataset = CEBABDataset('validation')

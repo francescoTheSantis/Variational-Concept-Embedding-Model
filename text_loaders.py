@@ -18,7 +18,7 @@ def process2(elem):
 class CEBABDataset(Dataset):
     def __init__(self, split, model_name='all-MiniLM-L6-v2'):
 
-        self.data = pd.read_csv(f'data/cebab/cebab_{split}.csv')
+        self.data = pd.read_csv(f'/home/bigdata-01QYD/s280037/XAI/working_folder_AA-CEM/data/cebab/cebab_{split}.csv')
         self.data['food'] = self.data.apply(lambda row: process(row['food']), axis=1)
         self.data['ambiance'] = self.data.apply(lambda row: process(row['ambiance']), axis=1)
         self.data['service'] = self.data.apply(lambda row: process(row['service']), axis=1)
@@ -80,7 +80,7 @@ class IMDBDataset(Dataset):
             max_length (int): Maximum sequence length for tokenization.
         """
 
-        self.folder = 'data/imdb'
+        self.folder = '/home/bigdata-01QYD/s280037/XAI/working_folder_AA-CEM/data/imdb'
         self.data = pd.concat([pd.read_csv(f'{self.folder}/IMDB-{split}-generated.csv'), pd.read_csv(f'{self.folder}/IMDB-{split}-manual.csv')]).reset_index()
         self.data['acting'] = self.data.apply(lambda row: process(row['acting']), axis=1)
         self.data['storyline'] = self.data.apply(lambda row: process(row['storyline']), axis=1)

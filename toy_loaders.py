@@ -124,7 +124,7 @@ class ToyDataset(Dataset):
 
 # create a class that, given the specific cusotm dataset above, generates the train,val and test splits (batched)
 # and returns the dataloaders for each split
-class DataLoader:
+class Toy_DataLoader:
     def __init__(self, dataset, batch_size, train_size, val_size, test_size, random_state=0):
         self.dataset = dataset
         self.batch_size = batch_size
