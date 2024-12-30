@@ -3,7 +3,7 @@ import torch.nn as nn
 from utilities import get_intervened_concepts_predictions
 
 class AA_CEM(nn.Module):
-    def __init__(self, in_size, n_concepts, emb_size, embedding_interventions=False):
+    def __init__(self, in_size, n_concepts, emb_size, embedding_interventions=True):
         super(AA_CEM, self).__init__()
         self.in_size = in_size
         self.n_concepts = n_concepts
@@ -53,7 +53,7 @@ class AA_CEM(nn.Module):
         return mu + eps * std
     
     def forward(self, x, c=None, p_int=0, device='cuda'):
-        bsz = x.shape[0]
+        #bsz = x.shape[0]
         c_pred_list, c_emb_list, mu_list, logvar_list = [], [], [], []
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
@@ -67,6 +67,7 @@ class AA_CEM(nn.Module):
                 c_emb = self.reparameterize(mu, logvar)
             else:
                 c_emb = mu
+                
             # apply prototype interventions
             if c!=None and p_int>0 and self.embedding_interventions:
                 # generate the mask containing one for the indexes that have to be intervened and 0 otherwise

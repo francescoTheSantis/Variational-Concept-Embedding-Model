@@ -77,7 +77,7 @@ def main(args):
     elif args.dataset == 'dot':
         in_features = 4
         n_concepts = 2
-        n_labels = 2    
+        n_labels = 2  
     elif args.dataset == 'cebab':
         in_features = 384
         n_concepts = 4
@@ -111,7 +111,7 @@ def main(args):
             nn.ReLU(),
             nn.Linear(args.emb_size*n_concepts, n_labels)
         )        
-        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size, False)
+        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size)
     elif args.model == 'cbm_linear':
         classifier = nn.Sequential(
             nn.Linear(n_concepts, n_labels)
@@ -193,7 +193,7 @@ def main(args):
             'n_concepts': n_concepts,
             'emb_size': args.emb_size,
             'concept_form': nn.BCELoss(),
-            'task_form': nn.BCEWithLogitsLoss(),
+            'task_form': nn.CrossEntropyLoss(),
             'device': 'cuda',
             'n_labels': n_labels
         }
@@ -214,7 +214,9 @@ def main(args):
                 intervention_df = intervention_df.append(intervention_results, ignore_index=True)
         intervention_df.to_csv(csv_file_path, index=False)
 
+
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="Run experiment")
     parser.add_argument('--dataset', type=str, help='The name of the dataset')
     parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
@@ -225,6 +227,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, required=True, help='The output directory to save the results')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
-
     args = parser.parse_args()
+    
     main(args)
+
