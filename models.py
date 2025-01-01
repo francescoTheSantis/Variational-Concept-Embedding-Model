@@ -63,7 +63,8 @@ class AA_CEM(nn.Module):
             mu = self.mu_layer[i](emb)
             logvar = self.logvar_layer[i](emb)
             # during training we sample from the multivariate normal distribution, at test-time we take MAP.
-            if self.training:
+            #if self.training:
+            if False:
                 c_emb = self.reparameterize(mu, logvar)
             else:
                 c_emb = mu

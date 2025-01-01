@@ -65,7 +65,6 @@ def main(args):
         loaded_val = torch.load(f'{loaders_path}/MNIST/val_loader.pt')
         loaded_test = torch.load(f'{loaders_path}/MNIST/test_loader.pt')
 
-
     if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
         n_concepts = 2

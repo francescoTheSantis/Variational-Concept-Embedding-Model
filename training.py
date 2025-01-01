@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 from utilities import D_kl_gaussian, get_intervened_concepts_predictions
     
-kl_penalty = 1e-1
+kl_penalty = 2e-1
 
 @torch.no_grad()
 def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_size,
@@ -55,10 +55,10 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
                 concept_loss += concept_form(c_pred[:,i], concept_labels[:,i])
             concept_loss /= n_concepts  
 
-        y_pred = y_pred.squeeze()
-        y = y.squeeze().long() 
+        y_pred = y_pred
+        y = y.squeeze() 
 
-        task_loss = task_form(y_pred, y) # .long()   
+        task_loss = task_form(y_pred, y.long())   
 
         running_task_loss += task_loss.item()
         if concept_encoder!=None:
@@ -79,8 +79,7 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
             running_d_kl_loss += D_kl.item()
 
         concept_preds = torch.cat([concept_preds, c_pred])
-        y_pred = y_pred.argmax(-1) 
-        # y_pred = torch.where(y_pred>0,1,0) 
+        y_pred = y_pred.argmax(-1) #torch.where(y_pred>0,1,0) 
         true_concepts = torch.cat([true_concepts, concept_labels])
         #print(c_embs.shape, c_emb.shape)
         c_embs = torch.cat([c_embs, c_emb])
@@ -99,8 +98,7 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
           n_concepts, emb_size, step_size, gamma, test, n_labels, corruption=0, device='cuda'):
     
     concept_form = nn.BCELoss()
-    task_form = nn.CrossEntropyLoss() 
-    #task_form = nn.BCEWithLogitsLoss() # so far we used only binary classification datasets 
+    task_form = nn.CrossEntropyLoss() #nn.BCEWithLogitsLoss() # so far we used only binary classification datasets 
     train_task_losses = []
     train_concept_losses = []
     D_kl_losses = []
@@ -131,7 +129,7 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
         return y_preds, y, c_preds, c_true, c_emb
 
     if model=='e2e':
-        optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr)
         print('Number of trainable parameters:', sum(p.numel() if p.requires_grad==True else 0 for p in classifier.parameters()))
     else:
         optimizer = torch.optim.AdamW(nn.Sequential(concept_encoder, classifier).parameters(), lr=lr)
@@ -168,10 +166,10 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
                     concept_loss += concept_form(c_pred[:,i], concept_labels[:,i])
                 concept_loss /= n_concepts  
 
-            y_pred = y_pred.squeeze()
-            y = y.squeeze().long() 
+            y_pred = y_pred   
+            y = y.squeeze() 
             
-            task_loss = task_form(y_pred, y) # .long()  
+            task_loss = task_form(y_pred, y.long())  
             running_task_loss += task_loss.item()
             if concept_encoder!=None:
                 running_concept_loss += concept_loss.item()
