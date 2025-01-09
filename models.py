@@ -3,12 +3,13 @@ import torch.nn as nn
 from utilities import get_intervened_concepts_predictions
 
 class AA_CEM(nn.Module):
-    def __init__(self, in_size, n_concepts, emb_size, embedding_interventions=True):
+    def __init__(self, in_size, n_concepts, emb_size, embedding_interventions=True, sampling=False):
         super(AA_CEM, self).__init__()
         self.in_size = in_size
         self.n_concepts = n_concepts
         self.emb_size = emb_size
         self.embedding_interventions = embedding_interventions
+        self.sampling = sampling
 
         # Initialize learnable prototypes
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -57,18 +58,17 @@ class AA_CEM(nn.Module):
         c_pred_list, c_emb_list, mu_list, logvar_list = [], [], [], []
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
-            #if c!=None and p_int>0 and self.embedding_interventions==False:
-            #    c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, False)
+            if c!=None and p_int>0 and self.embedding_interventions==False:
+                c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, False)
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
             logvar = self.logvar_layer[i](emb)
             # during training we sample from the multivariate normal distribution, at test-time we take MAP.
-            #if self.training:
-            if False:
+            if self.training and self.sampling:
                 c_emb = self.reparameterize(mu, logvar)
             else:
                 c_emb = mu
-                
+        
             # apply prototype interventions
             if c!=None and p_int>0 and self.embedding_interventions:
                 # generate the mask containing one for the indexes that have to be intervened and 0 otherwise

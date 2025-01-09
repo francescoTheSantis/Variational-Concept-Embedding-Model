@@ -1,9 +1,9 @@
 import torch
 from torchvision.datasets import CelebA
 from typing import List
-from torchvision.models import resnet18
+from transformers import ViTFeatureExtractor, ViTModel
 from torchvision import datasets, transforms
-from torch.utils.data import Dataset, DataLoader, random_split, TensorDataset
+from torch.utils.data import Dataset, DataLoader, random_split
 from torch import nn
 import numpy as np
 from PIL import Image
@@ -148,57 +148,3 @@ def MNIST_addition_loader(batch_size, root, val_size=0.1, seed=42, num_workers=3
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     return train_loader, val_loader, test_loader
-
-
-class EmbeddingExtractor:
-    def __init__(self, train_loader, val_loader, test_loader, device='cuda'):
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.test_loader = test_loader
-        self.device = device
-        
-        # Load ResNet18 model pre-trained on ImageNet
-        self.model = resnet18(pretrained=True)
-        # Remove the fully connected layer to get embeddings
-        self.model = nn.Sequential(*list(self.model.children())[:-1])
-        self.model = self.model.to(self.device)
-        self.model.eval()
-
-    def _extract_embeddings(self, loader):
-        """Helper function to extract embeddings for a given DataLoader."""
-        embeddings = []
-        labels = []
-
-        with torch.no_grad():
-            for images, targets in loader:
-                images = images.to(self.device)
-                # Extract embeddings
-                output = self.model(images)
-                # Flatten the output from (batch_size, 512, 1, 1) to (batch_size, 512)
-                output = output.view(output.size(0), -1)
-                embeddings.append(output.cpu())
-                labels.append(targets.cpu())
-
-        # Concatenate all embeddings and labels
-        embeddings = torch.cat(embeddings, dim=0)
-        labels = torch.cat(labels, dim=0)
-        return embeddings, labels
-
-    def _create_loader(self, embeddings, labels, batch_size):
-        """Helper function to create a DataLoader from embeddings and labels."""
-        dataset = TensorDataset(embeddings, labels)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    def produce_loaders(self):
-        """Produces new DataLoaders with embeddings instead of raw images."""
-        train_embeddings, train_labels = self._extract_embeddings(self.train_loader)
-        val_embeddings, val_labels = self._extract_embeddings(self.val_loader)
-        test_embeddings, test_labels = self._extract_embeddings(self.test_loader)
-
-        batch_size = self.train_loader.batch_size
-
-        train_loader = self._create_loader(train_embeddings, train_labels, batch_size)
-        val_loader = self._create_loader(val_embeddings, val_labels, batch_size)
-        test_loader = self._create_loader(test_embeddings, test_labels, batch_size)
-
-        return train_loader, val_loader, test_loader

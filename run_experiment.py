@@ -109,8 +109,8 @@ def main(args):
             nn.Linear(args.emb_size*n_concepts, args.emb_size*n_concepts),
             nn.ReLU(),
             nn.Linear(args.emb_size*n_concepts, n_labels)
-        )        
-        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size)
+        )                        
+        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size, True, args.sampling)
     elif args.model == 'cbm_linear':
         classifier = nn.Sequential(
             nn.Linear(n_concepts, n_labels)
@@ -149,17 +149,13 @@ def main(args):
         'device': args.device,
         'emb_size': args.emb_size,
         'test': False,
-        'n_labels': n_labels
+        'n_labels': n_labels,
+        'patience': args.patience,
+        'sampling': args.sampling,
+        'folder': output_dir
     }
     
     concept_encoder, classifier, train_task_losses, train_concept_losses, D_kl_losses, val_task_losses, val_concept_losses, D_kl_losses_val, y_preds, y, c_preds, c_true, c_emb = train(**params)
-    
-    if args.model != 'e2e':
-        concept_encoder_save_path = os.path.join(output_dir, 'concepot_encoder.pth')
-        torch.save(concept_encoder.state_dict(), concept_encoder_save_path)
-    classifier_save_path = os.path.join(output_dir, 'classifier.pth')
-    torch.save(classifier.state_dict(), classifier_save_path)
-    print(f'Models saved to {output_dir}')  
 
     plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, D_kl_losses, D_kl_losses_val, output_dir)
     task_f1, task_acc = f1_acc_metrics(y, y_preds)
@@ -206,12 +202,29 @@ def main(args):
             params['corruption'] = eps
             for p_int in p_ints:
                 params['intervention_prob'] = p_int
-                _, _, _, y_preds, y, c_preds, c_true, c_emb = evaluate(**params)
+                _, _, _, y_preds, y, c_preds, c_true, _ = evaluate(**params)
                 task_f1, task_acc = f1_acc_metrics(y, y_preds)
                 # create a dictionary with the results
                 intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
                 intervention_df = intervention_df.append(intervention_results, ignore_index=True)
         intervention_df.to_csv(csv_file_path, index=False)
+
+        if args.model=='aa_cem':
+            concept_encoder.embedding_interventions = False
+            params['concept_encoder'] = concept_encoder
+            csv_file_path = os.path.join(interventions_dir, 'metrics_concept_score_intervention.csv')
+            epss = [0, 0.25, 0.5, 0.75, 1]
+            p_ints = np.arange(0, 1.1, 0.1)
+            for eps in epss:
+                params['corruption'] = eps
+                for p_int in p_ints:
+                    params['intervention_prob'] = p_int
+                    _, _, _, y_preds, y, c_preds, c_true, _ = evaluate(**params)
+                    task_f1, task_acc = f1_acc_metrics(y, y_preds)
+                    # create a dictionary with the results
+                    intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
+                    intervention_df = intervention_df.append(intervention_results, ignore_index=True)
+            intervention_df.to_csv(csv_file_path, index=False)            
 
 
 if __name__ == "__main__":
@@ -226,7 +239,8 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, required=True, help='The output directory to save the results')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
+    parser.add_argument('--patience', type=int, default=15, help='Patience for early stopping')
+    parser.add_argument('--sampling', type=bool, default=False, help='Whether to sample from the distribution or take the MAP (only for AA_CEM)')
     args = parser.parse_args()
     
     main(args)
-
