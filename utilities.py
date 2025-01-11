@@ -50,28 +50,7 @@ class EarlyStopper:
                 return True
         return False
 
-    
-'''
-class EarlyStopper:
-    def __init__(self, patience=1, min_delta=0):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.min_loss = float('inf')
-        self.best_iteration = True
 
-    def early_stop(self, loss):
-        if loss < self.min_loss:
-            self.min_loss = loss
-            self.counter = 0
-            self.best_iteration = True
-        elif loss > (self.min_loss + self.min_delta):
-            self.counter += 1
-            self.best_iteration = False
-            if self.counter >= self.patience:
-                return True
-        return False
-'''
 
 def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False):
     hard_predictions = torch.where(predictions > 0.5, 1, 0)

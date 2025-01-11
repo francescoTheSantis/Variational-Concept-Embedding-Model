@@ -46,7 +46,7 @@ class CustomDataset(Dataset):
         return image, digits, label
     
 
-def MNIST_addition_loader(batch_size, root, val_size=0.1, seed=42, num_workers=3, pin_memory=True, shuffle=True):
+def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_memory=True, shuffle=True):
 
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.247, 0.243, 0.261)
@@ -55,8 +55,8 @@ def MNIST_addition_loader(batch_size, root, val_size=0.1, seed=42, num_workers=3
     generator = torch.Generator().manual_seed(seed) 
     np.random.seed(seed)
 
-    train_dataset = datasets.MNIST(root=root, train=True, download=True)
-    test_dataset = datasets.MNIST(root=root, train=False)
+    train_dataset = datasets.MNIST(root='./datasets/', train=True, download=True)
+    test_dataset = datasets.MNIST(root='./datasets/', train=False)
 
     # Create composed training-set
     unique_pairs = [str(x)+str(y) for x in range(10) for y in range(10)]
@@ -65,7 +65,7 @@ def MNIST_addition_loader(batch_size, root, val_size=0.1, seed=42, num_workers=3
     c_train = []
     y_train_lab = np.array([x[1] for x in train_dataset])
     y_test_lab = np.array([x[1] for x in test_dataset])
-    # y_digits = np.array([x[1] for x in test_dataset])
+    y_digits = np.array([x[1] for x in test_dataset])
     samples_per_permutation = 1000
     for train_set_pair in unique_pairs:
         for _ in range(samples_per_permutation):
@@ -84,51 +84,6 @@ def MNIST_addition_loader(batch_size, root, val_size=0.1, seed=42, num_workers=3
     c_test = []
     samples_per_permutation = 100
     for test_set_pair in unique_pairs:
-        for _ in range(samples_per_permutation):
-            rand_i = np.random.choice(np.where(y_test_lab == int(test_set_pair[0]))[0])
-            rand_j = np.random.choice(np.where(y_test_lab == int(test_set_pair[1]))[0])
-            temp_image = np.zeros((28,56), dtype="uint8")
-            temp_image[:,:28] = test_dataset[rand_i][0]
-            temp_image[:,28:] = test_dataset[rand_j][0]
-            X_test.append(temp_image)
-            y_test.append(y_test_lab[rand_i] + y_test_lab[rand_j])
-            c_test.append([y_test_lab[rand_i], y_test_lab[rand_j]])
-      
-    
-    # Create the composed dataset (two images concatenated over the x-axis)
-    unique_pairs = [str(x)+str(y) for x in range(10) for y in range(10)]
-    test_set_pairs = []
-    while(len(test_set_pairs) < 10):
-        pair_to_add = np.random.choice(unique_pairs)
-        if pair_to_add not in test_set_pairs:
-            test_set_pairs.append(pair_to_add)
-    train_set_pairs = list(set(unique_pairs) - set(test_set_pairs))
-    assert(len(test_set_pairs) == 10)
-    assert(len(train_set_pairs) == 90)
-    for test_set in test_set_pairs:
-        assert(test_set not in train_set_pairs)
-        print("%s not in training set." % test_set)
-    X_train = []
-    y_train = []
-    c_train = []
-    y_train_lab = np.array([x[1] for x in train_dataset])
-    y_test_lab = np.array([x[1] for x in test_dataset])
-    # y_digits = np.array([x[1] for x in test_dataset])
-    samples_per_permutation = 1000
-    for train_set_pair in train_set_pairs:
-        for _ in range(samples_per_permutation):
-            rand_i = np.random.choice(np.where(y_train_lab == int(train_set_pair[0]))[0])
-            rand_j = np.random.choice(np.where(y_train_lab == int(train_set_pair[1]))[0])
-            temp_image = np.zeros((28,56), dtype="uint8")
-            temp_image[:,:28] = train_dataset[rand_i][0]
-            temp_image[:,28:] = train_dataset[rand_j][0]
-            X_train.append(temp_image)
-            y_train.append(y_train_lab[rand_i] + y_train_lab[rand_j])
-            c_train.append([y_train_lab[rand_i], y_train_lab[rand_j]])
-    X_test = []
-    y_test = []
-    c_test = []
-    for test_set_pair in test_set_pairs:
         for _ in range(samples_per_permutation):
             rand_i = np.random.choice(np.where(y_test_lab == int(test_set_pair[0]))[0])
             rand_j = np.random.choice(np.where(y_test_lab == int(test_set_pair[1]))[0])
@@ -167,38 +122,42 @@ class EmbeddingExtractor:
     def _extract_embeddings(self, loader):
         """Helper function to extract embeddings for a given DataLoader."""
         embeddings = []
+        concepts_list = []
         labels = []
 
         with torch.no_grad():
-            for images, targets in loader:
+            for images, concepts, targets in loader:
                 images = images.to(self.device)
                 # Extract embeddings
                 output = self.model(images)
                 # Flatten the output from (batch_size, 512, 1, 1) to (batch_size, 512)
                 output = output.view(output.size(0), -1)
                 embeddings.append(output.cpu())
+                concepts_list.append(concepts.cpu())
                 labels.append(targets.cpu())
 
         # Concatenate all embeddings and labels
         embeddings = torch.cat(embeddings, dim=0)
+        concepts = torch.cat(concepts_list, dim=0)
         labels = torch.cat(labels, dim=0)
-        return embeddings, labels
+        return embeddings, concepts.float(), labels
 
-    def _create_loader(self, embeddings, labels, batch_size):
+    def _create_loader(self, embeddings, concepts, labels, batch_size):
         """Helper function to create a DataLoader from embeddings and labels."""
-        dataset = TensorDataset(embeddings, labels)
+        dataset = TensorDataset(embeddings, concepts, labels)
         return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     def produce_loaders(self):
         """Produces new DataLoaders with embeddings instead of raw images."""
-        train_embeddings, train_labels = self._extract_embeddings(self.train_loader)
-        val_embeddings, val_labels = self._extract_embeddings(self.val_loader)
-        test_embeddings, test_labels = self._extract_embeddings(self.test_loader)
+        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
+        val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
+        test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
 
         batch_size = self.train_loader.batch_size
 
-        train_loader = self._create_loader(train_embeddings, train_labels, batch_size)
-        val_loader = self._create_loader(val_embeddings, val_labels, batch_size)
-        test_loader = self._create_loader(test_embeddings, test_labels, batch_size)
+        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
+        train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, batch_size)
+        val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, batch_size)
+        test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, batch_size)
 
         return train_loader, val_loader, test_loader
