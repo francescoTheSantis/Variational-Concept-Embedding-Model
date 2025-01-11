@@ -36,8 +36,6 @@ class EarlyStopper:
         self.best_iteration = True
 
     def early_stop(self, task, concept, kl):
-        print('Actual loss:\t', task, concept, kl)
-        print('Best iteration:\t', self.min_task, self.min_concept, self.min_kl)
         if (task-self.min_task)<-self.min_delta or (concept-self.min_concept)<-self.min_delta or (kl-self.min_kl)<-self.min_delta:
             self.min_task = task if task < self.min_task else self.min_task
             self.min_concept = concept if concept < self.min_concept else self.min_concept
@@ -50,7 +48,6 @@ class EarlyStopper:
             self.best_iteration = False
             if self.counter >= self.patience:
                 return True
-        print(self.counter)
         return False
 
     

@@ -35,12 +35,7 @@ def main(args):
         loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaders_path = f'{args.output_dir}'.replace('results','data')
-        torch.save(loaded_train, f'{loaders_path}/cebab/train_loader.pt')
-        torch.save(loaded_val, f'{loaders_path}/cebab/val_loader.pt')
-        torch.save(loaded_test, f'{loaders_path}/cebab/test_loader.pt')
-        loaded_train = torch.load(f'{loaders_path}/cebab/train_loader.pt')
-        loaded_val = torch.load(f'{loaders_path}/cebab/val_loader.pt')
-        loaded_test = torch.load(f'{loaders_path}/cebab/test_loader.pt')
+        pass
     elif args.dataset == 'imdb':
         train_dataset = IMDBDataset('train')
         val_dataset = IMDBDataset('validation')
@@ -49,22 +44,13 @@ def main(args):
         loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaders_path = f'{args.output_dir}'.replace('results','data')
-        torch.save(loaded_train, f'{loaders_path}/imdb/train_loader.pt')
-        torch.save(loaded_val, f'{loaders_path}/imdb/val_loader.pt')
-        torch.save(loaded_test, f'{loaders_path}/imdb/test_loader.pt')
-        loaded_train = torch.load(f'{loaders_path}/imdb/train_loader.pt')
-        loaded_val = torch.load(f'{loaders_path}/imdb/val_loader.pt')
-        loaded_test = torch.load(f'{loaders_path}/imdb/test_loader.pt')
+        pass
     elif args.dataset == 'mnist_add':
         loaders_path = f'{args.output_dir}'.replace('results','data')
         loaded_train, loaded_val, loaded_test = MNIST_addition_loader(args.batch_size, loaders_path, val_size=0.1, seed=42) # the seed is fixed for the dataset creation
-        torch.save(loaded_train, f'{loaders_path}/MNIST/train_loader.pt')
-        torch.save(loaded_val, f'{loaders_path}/MNIST/val_loader.pt')
-        torch.save(loaded_test, f'{loaders_path}/MNIST/test_loader.pt')
-        loaded_train = torch.load(f'{loaders_path}/MNIST/train_loader.pt')
-        loaded_val = torch.load(f'{loaders_path}/MNIST/val_loader.pt')
-        loaded_test = torch.load(f'{loaders_path}/MNIST/test_loader.pt')
-
+        # process the loaded data using ResNet18 such that we do not require to pass the images in the ResNet18 model multiple times.
+        # this is done to speed up the training process.
+        pass
 
     if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
@@ -77,7 +63,7 @@ def main(args):
     elif args.dataset == 'dot':
         in_features = 4
         n_concepts = 2
-        n_labels = 2    
+        n_labels = 2  
     elif args.dataset == 'cebab':
         in_features = 384
         n_concepts = 4
@@ -110,8 +96,8 @@ def main(args):
             nn.Linear(args.emb_size*n_concepts, args.emb_size*n_concepts),
             nn.ReLU(),
             nn.Linear(args.emb_size*n_concepts, n_labels)
-        )        
-        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size, False)
+        )                        
+        concept_encoder = AA_CEM(in_features, n_concepts, args.emb_size, True, args.sampling)
     elif args.model == 'cbm_linear':
         classifier = nn.Sequential(
             nn.Linear(n_concepts, n_labels)
@@ -150,17 +136,13 @@ def main(args):
         'device': args.device,
         'emb_size': args.emb_size,
         'test': False,
-        'n_labels': n_labels
+        'n_labels': n_labels,
+        'patience': args.patience,
+        'sampling': args.sampling,
+        'folder': output_dir
     }
     
     concept_encoder, classifier, train_task_losses, train_concept_losses, D_kl_losses, val_task_losses, val_concept_losses, D_kl_losses_val, y_preds, y, c_preds, c_true, c_emb = train(**params)
-    
-    if args.model != 'e2e':
-        concept_encoder_save_path = os.path.join(output_dir, 'concepot_encoder.pth')
-        torch.save(concept_encoder.state_dict(), concept_encoder_save_path)
-    classifier_save_path = os.path.join(output_dir, 'classifier.pth')
-    torch.save(classifier.state_dict(), classifier_save_path)
-    print(f'Models saved to {output_dir}')  
 
     plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, D_kl_losses, D_kl_losses_val, output_dir)
     task_f1, task_acc = f1_acc_metrics(y, y_preds)
@@ -193,7 +175,7 @@ def main(args):
             'n_concepts': n_concepts,
             'emb_size': args.emb_size,
             'concept_form': nn.BCELoss(),
-            'task_form': nn.BCEWithLogitsLoss(),
+            'task_form': nn.CrossEntropyLoss(),
             'device': 'cuda',
             'n_labels': n_labels
         }
@@ -201,20 +183,39 @@ def main(args):
         if not os.path.exists(interventions_dir):
             os.makedirs(interventions_dir)
         csv_file_path = os.path.join(interventions_dir, 'metrics.csv')
-        epss = [0, 0.25, 0.5, 0.75, 1]
+        epss = [0, 0.1, 0.25, 0.5, 0.75, 1]
         p_ints = np.arange(0, 1.1, 0.1)
         for eps in epss:
             params['corruption'] = eps
             for p_int in p_ints:
                 params['intervention_prob'] = p_int
-                _, _, _, y_preds, y, c_preds, c_true, c_emb = evaluate(**params)
+                _, _, _, y_preds, y, c_preds, c_true, _ = evaluate(**params)
                 task_f1, task_acc = f1_acc_metrics(y, y_preds)
                 # create a dictionary with the results
                 intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
                 intervention_df = intervention_df.append(intervention_results, ignore_index=True)
         intervention_df.to_csv(csv_file_path, index=False)
 
+        if args.model=='aa_cem':
+            concept_encoder.embedding_interventions = False
+            params['concept_encoder'] = concept_encoder
+            csv_file_path = os.path.join(interventions_dir, 'metrics_concept_score_intervention.csv')
+            epss = [0, 0.25, 0.5, 0.75, 1]
+            p_ints = np.arange(0, 1.1, 0.1)
+            for eps in epss:
+                params['corruption'] = eps
+                for p_int in p_ints:
+                    params['intervention_prob'] = p_int
+                    _, _, _, y_preds, y, c_preds, c_true, _ = evaluate(**params)
+                    task_f1, task_acc = f1_acc_metrics(y, y_preds)
+                    # create a dictionary with the results
+                    intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
+                    intervention_df = intervention_df.append(intervention_results, ignore_index=True)
+            intervention_df.to_csv(csv_file_path, index=False)            
+
+
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="Run experiment")
     parser.add_argument('--dataset', type=str, help='The name of the dataset')
     parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
@@ -225,6 +226,8 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, required=True, help='The output directory to save the results')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
-
+    parser.add_argument('--patience', type=int, default=15, help='Patience for early stopping')
+    parser.add_argument('--sampling', type=bool, default=False, help='Whether to sample from the distribution or take the MAP (only for AA_CEM)')
     args = parser.parse_args()
+    
     main(args)

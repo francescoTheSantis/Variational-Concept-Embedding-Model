@@ -35,12 +35,7 @@ def main(args):
         loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaders_path = f'{args.output_dir}'.replace('results','data')
-        torch.save(loaded_train, f'{loaders_path}/cebab/train_loader.pt')
-        torch.save(loaded_val, f'{loaders_path}/cebab/val_loader.pt')
-        torch.save(loaded_test, f'{loaders_path}/cebab/test_loader.pt')
-        loaded_train = torch.load(f'{loaders_path}/cebab/train_loader.pt')
-        loaded_val = torch.load(f'{loaders_path}/cebab/val_loader.pt')
-        loaded_test = torch.load(f'{loaders_path}/cebab/test_loader.pt')
+        pass
     elif args.dataset == 'imdb':
         train_dataset = IMDBDataset('train')
         val_dataset = IMDBDataset('validation')
@@ -49,21 +44,13 @@ def main(args):
         loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         loaders_path = f'{args.output_dir}'.replace('results','data')
-        torch.save(loaded_train, f'{loaders_path}/imdb/train_loader.pt')
-        torch.save(loaded_val, f'{loaders_path}/imdb/val_loader.pt')
-        torch.save(loaded_test, f'{loaders_path}/imdb/test_loader.pt')
-        loaded_train = torch.load(f'{loaders_path}/imdb/train_loader.pt')
-        loaded_val = torch.load(f'{loaders_path}/imdb/val_loader.pt')
-        loaded_test = torch.load(f'{loaders_path}/imdb/test_loader.pt')
+        pass
     elif args.dataset == 'mnist_add':
         loaders_path = f'{args.output_dir}'.replace('results','data')
         loaded_train, loaded_val, loaded_test = MNIST_addition_loader(args.batch_size, loaders_path, val_size=0.1, seed=42) # the seed is fixed for the dataset creation
-        torch.save(loaded_train, f'{loaders_path}/MNIST/train_loader.pt')
-        torch.save(loaded_val, f'{loaders_path}/MNIST/val_loader.pt')
-        torch.save(loaded_test, f'{loaders_path}/MNIST/test_loader.pt')
-        loaded_train = torch.load(f'{loaders_path}/MNIST/train_loader.pt')
-        loaded_val = torch.load(f'{loaders_path}/MNIST/val_loader.pt')
-        loaded_test = torch.load(f'{loaders_path}/MNIST/test_loader.pt')
+        # process the loaded data using ResNet18 such that we do not require to pass the images in the ResNet18 model multiple times.
+        # this is done to speed up the training process.
+        pass
 
     if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
@@ -196,7 +183,7 @@ def main(args):
         if not os.path.exists(interventions_dir):
             os.makedirs(interventions_dir)
         csv_file_path = os.path.join(interventions_dir, 'metrics.csv')
-        epss = [0, 0.25, 0.5, 0.75, 1]
+        epss = [0, 0.1, 0.25, 0.5, 0.75, 1]
         p_ints = np.arange(0, 1.1, 0.1)
         for eps in epss:
             params['corruption'] = eps
