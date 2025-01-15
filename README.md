@@ -5,8 +5,9 @@ TODO:
 1. implementazione dataset aggiuntivi: (Phil)
    - CUB
    - cebab
+   - IMDB (Optional)
    - CelebA (Optional)
-   - mnist (Optinial)
+   - mnist even/odd (Optinial)
 
 2. riscrivere metodo (Fra)
 
