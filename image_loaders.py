@@ -108,6 +108,7 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     return train_loader, val_loader, test_loader
 
+
 class CUBDataset(Dataset):
     def __init__(self, root_dir, train=False):
         SELECTED_CONCEPTS = [1, 4, 6, 7, 10, 14, 15, 20, 21, 23, 25, 29, 30, 35, 36, 38, 40, 44, 
