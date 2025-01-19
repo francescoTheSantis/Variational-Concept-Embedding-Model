@@ -3,7 +3,7 @@
 DATASETS:
 - implementazione dataset aggiuntivi: 
    - CUB ✅ (Phil)
-   - CelebA (Phil)
+   - CelebA ✅ (Phil)
    - IMDB ✅ (Fra)
    - cebab ✅ (Fra)
    - mnist sum ✅ (Fra)
