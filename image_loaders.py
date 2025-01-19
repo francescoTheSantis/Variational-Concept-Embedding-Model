@@ -261,6 +261,54 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, dataset='./datasets/', nu
     print(f"Test dataset size: {len(test_dataset)}")
     
     return train_loader, val_loader, test_loader
+
+# CelebA loader
+# Problem of the loader: you need to download the dataset yourself and create a structure like this:
+# root/
+# └── celeba/
+#     ├── img_align_celeba/  # This folder should contain the images
+#     ├── list_attr_celeba.txt
+#     ├── identity_CelebA.txt
+#     ├── list_bbox_celeba.txt
+#     ├── list_landmarks_align_celeba.txt
+#     ├── list_eval_partition.txt
+# Additionally differently fom the others, this loader can be use like this:
+# for image, (concepts, label) in loaded_train:
+
+def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', num_workers=3, pin_memory=True, augment=True, shuffle=True):
+    generator = torch.Generator().manual_seed(seed) 
+
+    train_transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(degrees=10), 
+        transforms.Resize((280, 280)),  # image_size + 1/4 * image_size
+        transforms.RandomResizedCrop((224, 224)),
+        transforms.ToTensor()
+        ])
+    
+    test_transform = transforms.Compose([
+        transforms.Resize((224, 224)), 
+        transforms.ToTensor()
+        ]) 
+
+    #Download in the following lines is set to false due to a known torchvision issue which has 
+    #never been solved. YOU HAVE TO DOWNLOAD Celeba MANUALLY and unzip it in the folder you use as root
+    #https://stackoverflow.com/questions/70896841/error-downloading-celeba-dataset-using-torchvision
+    train_dataset = datasets.CelebA(root=dataset, split="train", target_type=["attr", "identity"],
+                                           transform=train_transform, download=False)
+    test_dataset = datasets.CelebA(root=dataset, split="test", target_type=["attr", "identity"],
+                                           transform=test_transform, download=False)
+
+    val_size = int(len(train_dataset) * val_size)
+    train_size = len(train_dataset) - val_size
+
+    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size], generator=generator)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+
+    return train_loader, val_loader, test_loader
     
 
 class EmbeddingExtractor:
