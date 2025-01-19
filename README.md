@@ -2,19 +2,21 @@
 
 TODO:
 
-1. implementazione dataset aggiuntivi: (Phil)
+DATASETS:
+- implementazione dataset aggiuntivi: (Phil)
    - CUB ✅
    - CelebA 
    - IMDB
    - cebab
    - mnist even/odd 
 
-2. riscrivere metodo (Fra)
+PAPER:
+- riscrivere metodo (Fra)
 
-3. variante proposta da gabri (Gabri)
+METHOD:
+- variante proposta da gabri (Gabri)
+- aumentare regolarizzazione (Fra)
 
-4. aumentare regolarizzazione (Fra)
-
-5. negative interventions (Fra)
-
-6. cace?
+METRICHS:
+- negative interventions (Fra)
+- cace?
