@@ -264,7 +264,7 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, dataset='./datasets/', nu
 
 # CelebA loader
 # Problem of the loader: you need to download the dataset yourself and create a structure like this:
-# root/
+# dataset/
 # └── celeba/
 #     ├── img_align_celeba/  # This folder should contain the images
 #     ├── list_attr_celeba.txt
