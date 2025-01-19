@@ -1,8 +1,11 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, TensorDataset
 import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
+import os
+
+
 def process(elem):
     if elem in ['Negative','unknown']:
         return 0
@@ -16,9 +19,10 @@ def process2(elem):
         return 0 
 
 class CEBABDataset(Dataset):
-    def __init__(self, split, model_name='all-MiniLM-L6-v2'):
+    def __init__(self, root, split, model_name='all-MiniLM-L6-v2'):
 
-        self.data = pd.read_csv(f'/home/bigdata-01QYD/s280037/XAI/working_folder_AA-CEM/data/cebab/cebab_{split}.csv')
+        path = os.path.join(root, f'data/cebab/cebab_{split}.csv')
+        self.data = pd.read_csv(path)
         self.data['food'] = self.data.apply(lambda row: process(row['food']), axis=1)
         self.data['ambiance'] = self.data.apply(lambda row: process(row['ambiance']), axis=1)
         self.data['service'] = self.data.apply(lambda row: process(row['service']), axis=1)
@@ -30,8 +34,10 @@ class CEBABDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
+        #if torch.is_tensor(idx):
+        #    idx = idx.tolist()
+        if idx >= len(self.data):
+            raise IndexError(f"Index {idx} is out of bounds for DataFrame with length {len(self.data)}")
 
         # Extract review, concept annotations, and label
         review = self.data.loc[idx, 'review']  # Column name for the review text
@@ -70,7 +76,7 @@ def collate_fn(batch):
 
 
 class IMDBDataset(Dataset):
-    def __init__(self, split, model_name='all-MiniLM-L6-v2'):
+    def __init__(self, root, split, model_name='all-MiniLM-L6-v2'):
         """
         Initialize the dataset with a CSV file and tokenizer.
 
@@ -80,7 +86,7 @@ class IMDBDataset(Dataset):
             max_length (int): Maximum sequence length for tokenization.
         """
 
-        self.folder = '/home/bigdata-01QYD/s280037/XAI/working_folder_AA-CEM/data/imdb'
+        self.folder = os.path.join(root, 'data/imdb')
         self.data = pd.concat([pd.read_csv(f'{self.folder}/IMDB-{split}-generated.csv'), pd.read_csv(f'{self.folder}/IMDB-{split}-manual.csv')]).reset_index()
         self.data['acting'] = self.data.apply(lambda row: process(row['acting']), axis=1)
         self.data['storyline'] = self.data.apply(lambda row: process(row['storyline']), axis=1)
@@ -97,8 +103,8 @@ class IMDBDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
+        if idx >= len(self.data):
+            raise IndexError(f"Index {idx} is out of bounds for DataFrame with length {len(self.data)}")
 
         # Extract review, concept annotations, and label
         review = self.data.loc[idx, 'review']
@@ -116,4 +122,53 @@ class IMDBDataset(Dataset):
         label_tensor = torch.tensor(label, dtype=torch.float)
 
         return text_embedding, concepts_tensor, label_tensor
+
+
+class EmbeddingExtractor_text:
+    def __init__(self, train_loader, val_loader, test_loader, batch_size, device='cuda'):
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.device = device
+        self.batch_size = batch_size
+
+    def _extract_embeddings(self, loader):
+        """Helper function to extract embeddings for a given DataLoader."""
+        embeddings = []
+        concepts_list = []
+        labels = []
+
+        with torch.no_grad():
+            for embs, concepts, targets in loader:
+                if len(embs.shape) == 1:
+                    embs = embs.unsqueeze(0)
+                    concepts = concepts.unsqueeze(0)
+                    targets = targets.unsqueeze(0)
+                embeddings.append(embs.cpu())
+                concepts_list.append(concepts.cpu())
+                labels.append(targets.cpu())
+
+        # Concatenate all embeddings and labels
+        embeddings = torch.cat(embeddings, dim=0)
+        concepts = torch.cat(concepts_list, dim=0)
+        labels = torch.cat(labels, dim=0)
+        return embeddings, concepts.float(), labels
+
+    def _create_loader(self, embeddings, concepts, labels, batch_size):
+        """Helper function to create a DataLoader from embeddings and labels."""
+        dataset = TensorDataset(embeddings, concepts, labels)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    def produce_loaders(self):
+        """Produces new DataLoaders with embeddings instead of raw images."""
+        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
+        val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
+        test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
+
+        train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, self.batch_size)
+        val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, self.batch_size)
+        test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, self.batch_size)
+
+        return train_loader, val_loader, test_loader
+
 

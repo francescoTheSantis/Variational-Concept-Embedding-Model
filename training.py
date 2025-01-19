@@ -6,7 +6,7 @@ from tqdm import tqdm
 from utilities import D_kl_gaussian, get_intervened_concepts_predictions, EarlyStopper
 import os
 
-kl_penalty = 1
+kl_penalty = 2
 
 @torch.no_grad()
 def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_size,
@@ -132,10 +132,10 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
         return y_preds, y, c_preds, c_true, c_emb
 
     if model=='e2e':
-        optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr)
         print('Number of trainable parameters:', sum(p.numel() if p.requires_grad==True else 0 for p in classifier.parameters()))
     else:
-        optimizer = torch.optim.Adam(nn.Sequential(concept_encoder, classifier).parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(nn.Sequential(concept_encoder, classifier).parameters(), lr=lr)
         print('Number of trainable parameters:', sum(p.numel() if p.requires_grad==True else 0 for p in concept_encoder.parameters())+\
           sum(p.numel() if p.requires_grad==True else 0 for p in classifier.parameters()))
         
@@ -150,6 +150,7 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
             y = torch.Tensor(batch[2]).to(device)
             concept_labels = batch[1].to(device)
             x = batch[0].to(device)
+
             if model=='e2e':
                 y_pred = classifier(x)
             elif model=='cem':

@@ -1,5 +1,6 @@
 import argparse
 from toy_loaders import *
+from text_loaders import *
 from models import *
 from training import *
 from utilities import *
@@ -34,9 +35,26 @@ def main(args):
         # this is done to speed up the training process.
         E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=args.device)
         loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
-        in_features = 2
-        n_concepts = 10
-        n_labels = 20
+    elif args.dataset == 'cub':
+        loaded_train, loaded_val, loaded_test = CUB200_loader(args.batch_size, val_size=0.1, seed=42, dataset=f'{args.root}/data/cub', num_workers=3, pin_memory=True, augment=True, shuffle=True)
+        E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=args.device)
+        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
+    elif args.dataset == 'celeba':
+        pass
+    elif args.dataset == 'cebab':
+        loaded_train = CEBABDataset(args.root, 'train', model_name='all-MiniLM-L6-v2')
+        loaded_val = CEBABDataset(args.root, 'validation', model_name='all-MiniLM-L6-v2')
+        loaded_test = CEBABDataset(args.root, 'test', model_name='all-MiniLM-L6-v2')
+        E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, args.batch_size, device=args.device)
+        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
+    elif args.dataset == 'imdb':
+        loaded_train = IMDBDataset(args.root, 'train', model_name='all-MiniLM-L6-v2')
+        loaded_val = IMDBDataset(args.root, 'validation', model_name='all-MiniLM-L6-v2')
+        loaded_test = IMDBDataset(args.root, 'test', model_name='all-MiniLM-L6-v2')
+        E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, args.batch_size, device=args.device)
+        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
+
+
     if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
         n_concepts = 2
@@ -53,12 +71,26 @@ def main(args):
         in_features = 512
         n_concepts = 10
         n_labels = 20
+    elif args.dataset == 'cub':
+        in_features = 512
+        n_concepts = 112
+        n_labels = 200
+    elif args.dataset == 'celeba':
+        pass
+    elif args.dataset == 'cebab':
+        in_features = 384
+        n_concepts = 4
+        n_labels = 2
+    elif args.dataset == 'imdb':
+        in_features = 384
+        n_concepts = 8
+        n_labels = 2
 
     if args.model == 'e2e':
         classifier = nn.Sequential(
-            nn.Linear(in_features, in_features),
+            nn.Linear(in_features, 16),
             nn.ReLU(),
-            nn.Linear(in_features, n_labels)
+            nn.Linear(16, n_labels)
         )
         concept_encoder = None
     elif args.model == 'cem':
@@ -194,6 +226,7 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run experiment")
+    parser.add_argument('--root', type=str, default=None, help='The root directory for the dataset')
     parser.add_argument('--dataset', type=str, help='The name of the dataset')
     parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
     parser.add_argument('--model', type=str, default='linear', help='The model to use for the experiment')

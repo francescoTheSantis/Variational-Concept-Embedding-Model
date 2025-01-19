@@ -122,7 +122,11 @@ class CUBDataset(Dataset):
 
         self.root_dir = root_dir
         self.train = train
-        
+
+        self.mean = (0.4914, 0.4822, 0.4465)
+        self.std = (0.247, 0.243, 0.261)
+
+        '''
         if self.train:
             self.transform = transforms.Compose([
                         transforms.RandomHorizontalFlip(),
@@ -136,7 +140,13 @@ class CUBDataset(Dataset):
                     transforms.Resize((224, 224)), 
                     transforms.ToTensor()
                 ]) 
-            
+        '''
+        self.transform = transforms.Compose([
+                transforms.Resize((224, 224)), 
+                transforms.ToTensor(),
+                transforms.Normalize(self.mean, self.std)
+            ]) 
+        
         if os.path.isdir(self.root_dir + "/CUB_200_2011") is False:
             url = "https://data.caltech.edu/records/65de6-vp158/files/CUB_200_2011.tgz?download=1"
             file_name = "CUB_200_2011.tgz"
@@ -199,7 +209,7 @@ class CUBDataset(Dataset):
         return len(self.image_paths_test)
     
     # Step 1: Download the file
-    def _download_file(url, file_name):
+    def _download_file(self, url, file_name):
         print(f"Downloading {file_name}...")
         response = requests.get(url, stream=True)
         response.raise_for_status()  # Raise an exception for HTTP errors
@@ -209,7 +219,7 @@ class CUBDataset(Dataset):
         print(f"Downloaded {file_name} successfully.")
 
     # Step 2: Extract the tar.gz file
-    def _extract_file(file_name, output_dir):
+    def _extract_file(self, file_name, output_dir):
         print(f"Extracting {file_name}...")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -303,7 +313,6 @@ class EmbeddingExtractor:
 
         batch_size = self.train_loader.batch_size
 
-        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
         train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, batch_size)
         val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, batch_size)
         test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, batch_size)
