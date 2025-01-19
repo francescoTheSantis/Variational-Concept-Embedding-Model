@@ -1,7 +1,5 @@
 # Adversary-Aware-Concept-Embedding-Model
 
-TODO:
-
 DATASETS:
 - implementazione dataset aggiuntivi: (Phil)
    - CUB ✅
