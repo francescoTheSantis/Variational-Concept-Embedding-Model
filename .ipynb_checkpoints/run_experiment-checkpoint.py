@@ -6,7 +6,7 @@ from utilities import *
 import os
 import csv
 import pandas as pd
-from text_loaders import *
+#from text_loaders import *
 from image_loaders import *
 
 def main(args):
@@ -27,31 +27,16 @@ def main(args):
 
     if args.dataset in ['xor', 'and', 'or', 'trigonometry', 'dot']:
         loaded_train, loaded_val, loaded_test = Toy_DataLoader(args.dataset, args.batch_size, 800, 100, 100).get_data_loaders()
-    elif args.dataset == 'cebab':
-        train_dataset = CEBABDataset('train')
-        val_dataset = CEBABDataset('validation')
-        test_dataset = CEBABDataset('test')
-        loaded_train = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
-        loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
-        loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
-        loaders_path = f'{args.output_dir}'.replace('results','data')
-        pass
-    elif args.dataset == 'imdb':
-        train_dataset = IMDBDataset('train')
-        val_dataset = IMDBDataset('validation')
-        test_dataset = IMDBDataset('test')
-        loaded_train = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
-        loaded_val = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
-        loaded_test = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
-        loaders_path = f'{args.output_dir}'.replace('results','data')
-        pass
     elif args.dataset == 'mnist_add':
-        loaders_path = f'{args.output_dir}'.replace('results','data')
-        loaded_train, loaded_val, loaded_test = MNIST_addition_loader(args.batch_size, loaders_path, val_size=0.1, seed=42) # the seed is fixed for the dataset creation
+        #loaders_path = f'{args.output_dir}'.replace('results','data')
+        loaded_train, loaded_val, loaded_test = MNIST_addition_loader(args.batch_size, val_size=0.1, seed=42) # the seed is fixed for the dataset creation
         # process the loaded data using ResNet18 such that we do not require to pass the images in the ResNet18 model multiple times.
         # this is done to speed up the training process.
-        pass
-
+        E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=args.device)
+        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
+        in_features = 2
+        n_concepts = 10
+        n_labels = 20
     if args.dataset in ['xor', 'and', 'or']:
         in_features = 2
         n_concepts = 2
@@ -64,24 +49,16 @@ def main(args):
         in_features = 4
         n_concepts = 2
         n_labels = 2  
-    elif args.dataset == 'cebab':
-        in_features = 384
-        n_concepts = 4
-        n_labels = 2
-    elif args.dataset == 'imdb':
-        in_features = 384
-        n_concepts = 8
-        n_labels = 2
     elif args.dataset == 'mnist_add':
-        in_features = 768
+        in_features = 512
         n_concepts = 10
-        n_labels = 19
+        n_labels = 20
 
     if args.model == 'e2e':
         classifier = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(in_features, in_features),
             nn.ReLU(),
-            nn.Linear(16, n_labels)
+            nn.Linear(in_features, n_labels)
         )
         concept_encoder = None
     elif args.model == 'cem':
@@ -221,12 +198,12 @@ if __name__ == "__main__":
     parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
     parser.add_argument('--model', type=str, default='linear', help='The model to use for the experiment')
     parser.add_argument('--batch_size', type=int, default=128, help='The batch size to use for training')
-    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs to run')
+    parser.add_argument('--epochs', type=int, default=500, help='Number of epochs to run')
     parser.add_argument('--device', type=str, default='cuda', help='The device to use for training')
     parser.add_argument('--output_dir', type=str, required=True, help='The output directory to save the results')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
-    parser.add_argument('--patience', type=int, default=15, help='Patience for early stopping')
+    parser.add_argument('--patience', type=int, default=20, help='Patience for early stopping')
     parser.add_argument('--sampling', type=bool, default=False, help='Whether to sample from the distribution or take the MAP (only for AA_CEM)')
     args = parser.parse_args()
     

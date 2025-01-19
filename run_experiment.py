@@ -56,9 +56,9 @@ def main(args):
 
     if args.model == 'e2e':
         classifier = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(in_features, in_features),
             nn.ReLU(),
-            nn.Linear(16, n_labels)
+            nn.Linear(in_features, n_labels)
         )
         concept_encoder = None
     elif args.model == 'cem':
@@ -198,12 +198,12 @@ if __name__ == "__main__":
     parser.add_argument('--emb_size', type=int, default=16, help='The size of the concept embeddings')  
     parser.add_argument('--model', type=str, default='linear', help='The model to use for the experiment')
     parser.add_argument('--batch_size', type=int, default=128, help='The batch size to use for training')
-    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs to run')
+    parser.add_argument('--epochs', type=int, default=500, help='Number of epochs to run')
     parser.add_argument('--device', type=str, default='cuda', help='The device to use for training')
     parser.add_argument('--output_dir', type=str, required=True, help='The output directory to save the results')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate')
-    parser.add_argument('--patience', type=int, default=15, help='Patience for early stopping')
+    parser.add_argument('--patience', type=int, default=20, help='Patience for early stopping')
     parser.add_argument('--sampling', type=bool, default=False, help='Whether to sample from the distribution or take the MAP (only for AA_CEM)')
     args = parser.parse_args()
     

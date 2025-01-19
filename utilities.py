@@ -53,13 +53,14 @@ class EarlyStopper:
 
 
 def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False):
+    
     hard_predictions = torch.where(predictions > 0.5, 1, 0)
     # Ensure predictions and labels are 2D tensors
     assert predictions.dim() == 2 and labels.dim() == 2, "Both tensors must be 2D"
     
     # Find mismatched indices
     mismatched_indices = (hard_predictions != labels).nonzero(as_tuple=False)
-    
+
     # Randomly select mismatched indices based on the given probability
     num_mismatches = mismatched_indices.size(0)
     mask = torch.rand(num_mismatches) < probability
