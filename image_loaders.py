@@ -312,11 +312,12 @@ def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', num_
     
 
 class EmbeddingExtractor:
-    def __init__(self, train_loader, val_loader, test_loader, device='cuda'):
+    def __init__(self, train_loader, val_loader, test_loader, device='cuda', celeba=False):
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.device = device
+        self.celeba = celeba
         
         # Load ResNet18 model pre-trained on ImageNet
         self.model = resnet18(pretrained=True)
@@ -332,16 +333,25 @@ class EmbeddingExtractor:
         labels = []
 
         with torch.no_grad():
-            for images, concepts, targets in loader:
-                images = images.to(self.device)
-                # Extract embeddings
-                output = self.model(images)
-                # Flatten the output from (batch_size, 512, 1, 1) to (batch_size, 512)
-                output = output.view(output.size(0), -1)
-                embeddings.append(output.cpu())
-                concepts_list.append(concepts.cpu())
-                labels.append(targets.cpu())
-
+            if not self.celeba:
+                for images, concepts, targets in loader:
+                    images = images.to(self.device)
+                    # Extract embeddings
+                    output = self.model(images)
+                    # Flatten the output from (batch_size, 512, 1, 1) to (batch_size, 512)
+                    output = output.view(output.size(0), -1)
+                    embeddings.append(output.cpu())
+                    concepts_list.append(concepts.cpu())
+                    labels.append(targets.cpu())
+            else:
+                for images, (concepts, targets) in loader:
+                    images = images.to(self.device)
+                    output = self.model(images)
+                    output = output.view(output.size(0), -1)
+                    embeddings.append(output.cpu())
+                    concepts_list.append(concepts.cpu())
+                    labels.append(targets.cpu())
+                
         # Concatenate all embeddings and labels
         embeddings = torch.cat(embeddings, dim=0)
         concepts = torch.cat(concepts_list, dim=0)
