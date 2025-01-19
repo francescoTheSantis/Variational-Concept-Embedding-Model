@@ -1,12 +1,12 @@
 # Adversary-Aware-Concept-Embedding-Model
 
 DATASETS:
-- implementazione dataset aggiuntivi: (Phil)
-   - CUB ✅
-   - CelebA 
-   - IMDB
-   - cebab
-   - mnist even/odd 
+- implementazione dataset aggiuntivi: 
+   - CUB ✅ (Phil)
+   - CelebA (Phil)
+   - IMDB (Fra)
+   - cebab (Fra)
+   - mnist sum ✅ (Fra)
 
 PAPER:
 - riscrivere metodo (Fra)
@@ -17,4 +17,7 @@ METHOD:
 
 METRICHS:
 - negative interventions (Fra)
-- cace?
+- cace? (...)
+
+BASELINES:
+- IntCEM? (...)
