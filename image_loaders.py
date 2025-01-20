@@ -70,7 +70,7 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_
     y_train_lab = np.array([x[1] for x in train_dataset])
     y_test_lab = np.array([x[1] for x in test_dataset])
     y_digits = np.array([x[1] for x in test_dataset])
-    samples_per_permutation = 1000
+    samples_per_permutation = 500
     for train_set_pair in unique_pairs:
         for _ in range(samples_per_permutation):
             rand_i = np.random.choice(np.where(y_train_lab == int(train_set_pair[0]))[0])
