@@ -3,9 +3,9 @@
 DATASETS:
 - implementazione dataset aggiuntivi: 
    - CUB ✅ (Phil)
-   - CelebA (Phil)
-   - IMDB (Fra)
-   - cebab (Fra)
+   - CelebA ✅ (Phil)
+   - IMDB ✅ (Fra)
+   - cebab ✅ (Fra)
    - mnist sum ✅ (Fra)
 
 PAPER:
@@ -13,7 +13,7 @@ PAPER:
 
 METHOD:
 - variante proposta da gabri (Gabri)
-- aumentare regolarizzazione (Fra)
+- aumentare regolarizzazione ✅ (Fra)
 
 METRICHS:
 - negative interventions (Fra)
