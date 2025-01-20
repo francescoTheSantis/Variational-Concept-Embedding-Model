@@ -88,9 +88,9 @@ def main(args):
 
     if args.model == 'e2e':
         classifier = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(in_features, in_features),
             nn.ReLU(),
-            nn.Linear(16, n_labels)
+            nn.Linear(in_features, n_labels)
         )
         concept_encoder = None
     elif args.model == 'cem':
@@ -112,21 +112,21 @@ def main(args):
             nn.Linear(n_concepts, n_labels)
         )
         concept_encoder = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(in_features, in_features),
             nn.ReLU(),
-            nn.Linear(16, n_concepts),
+            nn.Linear(in_features, n_concepts),
             nn.Sigmoid()
         ) 
     elif args.model == 'cbm_mlp':
         classifier = nn.Sequential(
-            nn.Linear(n_concepts, 16),
+            nn.Linear(n_concepts, n_concepts),
             nn.ReLU(),
-            nn.Linear(16, n_labels)
+            nn.Linear(n_concepts, n_labels)
         )
         concept_encoder = nn.Sequential(
-            nn.Linear(in_features, 16),
+            nn.Linear(in_features, in_features),
             nn.ReLU(),
-            nn.Linear(16, n_concepts),
+            nn.Linear(in_features, n_concepts),
             nn.Sigmoid()
         ) 
 
@@ -140,8 +140,8 @@ def main(args):
         'lr': args.lr,
         'epochs': args.epochs,
         'n_concepts': n_concepts,
-        'step_size': 100,
-        'gamma': 0.1,
+        'step_size': 20,
+        'gamma': 0.5,
         'device': args.device,
         'emb_size': args.emb_size,
         'test': False,

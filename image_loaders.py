@@ -1,7 +1,7 @@
 import torch
 from torchvision.datasets import CelebA
 from typing import List
-from torchvision.models import resnet18
+from torchvision.models import resnet34
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader, random_split, TensorDataset
 from torch import nn
@@ -319,8 +319,8 @@ class EmbeddingExtractor:
         self.device = device
         self.celeba = celeba
         
-        # Load ResNet18 model pre-trained on ImageNet
-        self.model = resnet18(pretrained=True)
+        # Load ResNet34 model pre-trained on ImageNet
+        self.model = resnet34(pretrained=True)
         # Remove the fully connected layer to get embeddings
         self.model = nn.Sequential(*list(self.model.children())[:-1])
         self.model = self.model.to(self.device)

@@ -11,7 +11,7 @@ class AA_CEM(nn.Module):
         self.embedding_interventions = embedding_interventions
         self.sampling = sampling
 
-        # Initialize learnable prototypes
+        # Initialize learnable concept prototypes
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
         self.prototype_emb_neg = nn.Parameter(torch.randn(n_concepts, emb_size))
 

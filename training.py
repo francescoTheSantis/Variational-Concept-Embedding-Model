@@ -6,7 +6,8 @@ from tqdm import tqdm
 from utilities import D_kl_gaussian, get_intervened_concepts_predictions, EarlyStopper
 import os
 
-kl_penalty = 2
+kl_penalty = 1
+task_penalty = 0.1
 
 @torch.no_grad()
 def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_size,
@@ -56,23 +57,19 @@ def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_siz
                 concept_loss += concept_form(c_pred[:,i], concept_labels[:,i])
             concept_loss /= n_concepts  
 
-        y_pred = y_pred
-        y = y.squeeze() 
-
-        task_loss = task_form(y_pred, y.long())   
-
-        running_task_loss += task_loss.item()
         if concept_encoder!=None:
             running_concept_loss += concept_loss.item()
+
+        y_pred = y_pred
+        y = y.squeeze() 
+        
+        if concept_encoder!=None:
+            task_loss = task_form(y_pred, y.long()) * task_penalty 
+        else:
+            task_loss = task_form(y_pred, y.long()) 
+        running_task_loss += task_loss.item()
+
         if model=='aa_cem':
-            '''
-            prototype_emb_pos = concept_encoder.prototype_emb_pos
-            prototype_emb_neg = concept_encoder.prototype_emb_neg
-            cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, prototype_emb_pos.shape[-1])
-            prototype_emb_pos = prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-            prototype_emb_neg = prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-            prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
-            '''
             cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, concept_encoder.emb_size)
             prototype_emb = cloned_c_pred * concept_encoder.prototype_emb_pos[None, :, :] + \
                 (1 - cloned_c_pred) * concept_encoder.prototype_emb_neg[None, :, :]
@@ -111,7 +108,6 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
         concept_encoder.to(device)
     classifier.train()
     classifier.to(device)
-    patience_cnt = 0
     early_stopper = EarlyStopper(patience=patience, min_delta=eps)
 
     if test:
@@ -132,10 +128,10 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
         return y_preds, y, c_preds, c_true, c_emb
 
     if model=='e2e':
-        optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr)
+        optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
         print('Number of trainable parameters:', sum(p.numel() if p.requires_grad==True else 0 for p in classifier.parameters()))
     else:
-        optimizer = torch.optim.AdamW(nn.Sequential(concept_encoder, classifier).parameters(), lr=lr)
+        optimizer = torch.optim.Adam(nn.Sequential(concept_encoder, classifier).parameters(), lr=lr)
         print('Number of trainable parameters:', sum(p.numel() if p.requires_grad==True else 0 for p in concept_encoder.parameters())+\
           sum(p.numel() if p.requires_grad==True else 0 for p in classifier.parameters()))
         
@@ -170,26 +166,23 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
                     concept_loss += concept_form(c_pred[:,i], concept_labels[:,i])
                 concept_loss /= n_concepts  
 
-            y_pred = y_pred   
-            y = y.squeeze() 
-            
-            task_loss = task_form(y_pred, y.long())  
-            running_task_loss += task_loss.item()
             if concept_encoder!=None:
                 running_concept_loss += concept_loss.item()
+
+            y_pred = y_pred   
+            y = y.squeeze() 
+
+            if concept_encoder!=None:
+                task_loss = task_form(y_pred, y.long()) * task_penalty 
+            else:
+                task_loss = task_form(y_pred, y.long()) 
+            running_task_loss += task_loss.item()
+
             if model=='e2e':
                 loss = task_loss
             elif model=='cem' or 'cbm' in model:
                 loss = concept_loss + task_loss
             elif model=='aa_cem':
-                '''
-                prototype_emb_pos = concept_encoder.prototype_emb_pos
-                prototype_emb_neg = concept_encoder.prototype_emb_neg
-                cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, prototype_emb_pos.shape[-1])
-                prototype_emb_pos = prototype_emb_pos.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-                prototype_emb_neg = prototype_emb_neg.unsqueeze(0).expand(c_pred.size(0), -1, -1)
-                prototype_emb = cloned_c_pred * prototype_emb_pos + (1 - cloned_c_pred) * prototype_emb_neg
-                '''
                 cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, concept_encoder.emb_size)
                 prototype_emb = cloned_c_pred * concept_encoder.prototype_emb_pos[None, :, :] + \
                     (1 - cloned_c_pred) * concept_encoder.prototype_emb_neg[None, :, :]

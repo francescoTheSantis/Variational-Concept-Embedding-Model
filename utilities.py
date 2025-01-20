@@ -14,7 +14,6 @@ def set_seed(seed):
     if torch.cuda.is_available(): 
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed) 
-
         
 def D_kl_gaussian(mu_q, logvar_q, mu_p, with_variance=True):
     if with_variance:
@@ -22,8 +21,6 @@ def D_kl_gaussian(mu_q, logvar_q, mu_p, with_variance=True):
     else:
         value = torch.sum((mu_q - mu_p).pow(2), dim=-1)
     return value.mean()
-
-
 
 class EarlyStopper:
     def __init__(self, patience=1, min_delta=0):
@@ -50,8 +47,6 @@ class EarlyStopper:
                 return True
         return False
 
-
-
 def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False):
     
     hard_predictions = torch.where(predictions > 0.5, 1, 0)
@@ -74,7 +69,6 @@ def get_intervened_concepts_predictions(predictions, labels, probability, return
         return mask, intervened
     else:
         return intervened
-
 
 def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, d_kl, val_d_kl, output_folder=None):
 
@@ -109,7 +103,6 @@ def plot_training_curves(train_task_losses, val_task_losses, train_concept_losse
     plt.savefig(os.path.join(output_folder, 'training_validation_losses.pdf'))
     plt.show()  # Show the plot
     plt.close()
-
 
 def f1_acc_metrics(y_true, y_pred):
     # Convert PyTorch tensors to lists if necessary
