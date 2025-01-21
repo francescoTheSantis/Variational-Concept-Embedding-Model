@@ -318,6 +318,10 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, dataset='./datasets/', nu
 #22             Mustache  0.041545
 #4                  Bald  0.022443
 
+#Suggested:
+#concept_names = ['Mouth_Slightly_Open', 'Smiling', 'Wearing_Lipstick', 'High_Cheekbones', 'Heavy_Makeup', 'Wavy_Hair', 'Oval_Face', 'Pointy_Nose', 'Arched_Eyebrows', 'Big_Lips']
+#class_attributes = ['Male']
+
 class CelebADataset(CelebA):
     """
     The CelebA dataset is a large-scale face attributes dataset with more than
