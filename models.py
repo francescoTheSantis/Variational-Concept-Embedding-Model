@@ -15,14 +15,18 @@ class AA_CEM(nn.Module):
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
         self.prototype_emb_neg = nn.Parameter(torch.randn(n_concepts, emb_size))
 
+        self.shared_layers = nn.Sequential(
+            nn.Linear(self.in_size, self.in_size), 
+            nn.ReLU()
+        )
+
         self.concept_scorers = nn.ModuleList()
         self.layers = nn.ModuleList()
         self.mu_layer = nn.ModuleList()
         self.logvar_layer = nn.ModuleList()
+
         for _ in range(self.n_concepts):
             layers = nn.Sequential(
-                nn.Linear(self.in_size, self.in_size),
-                nn.ReLU(),
                 nn.Linear(self.in_size, 1),
                 nn.Sigmoid()
             )
@@ -56,6 +60,7 @@ class AA_CEM(nn.Module):
     def forward(self, x, c=None, p_int=0, device='cuda'):
         #bsz = x.shape[0]
         c_pred_list, c_emb_list, mu_list, logvar_list = [], [], [], []
+        x = self.shared_layers(x)
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
             if c!=None and p_int>0 and self.embedding_interventions==False:

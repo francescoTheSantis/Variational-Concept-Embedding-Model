@@ -6,8 +6,8 @@ from tqdm import tqdm
 from utilities import D_kl_gaussian, get_intervened_concepts_predictions, EarlyStopper
 import os
 
-kl_penalty = 1
-task_penalty = 0.1
+kl_penalty = 1e-1
+task_penalty = 1e-1
 
 @torch.no_grad()
 def evaluate(model, concept_encoder, classifier, loaded_set, n_concepts, emb_size,
@@ -108,7 +108,7 @@ def train(model, loaded_train, loaded_val, loaded_test, concept_encoder, classif
         concept_encoder.to(device)
     classifier.train()
     classifier.to(device)
-    early_stopper = EarlyStopper(patience=patience, min_delta=eps)
+    early_stopper = EarlyStopper(patience=patience, min_delta=eps, separate=False)
 
     if test:
         params = {

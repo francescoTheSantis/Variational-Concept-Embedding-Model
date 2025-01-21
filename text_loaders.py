@@ -6,6 +6,8 @@ from sentence_transformers import SentenceTransformer
 import os
 
 
+sentence_embedder = 'all-distilroberta-v1'
+
 def process(elem):
     if elem in ['Negative','unknown']:
         return 0
@@ -19,7 +21,7 @@ def process2(elem):
         return 0 
 
 class CEBABDataset(Dataset):
-    def __init__(self, root, split, model_name='all-MiniLM-L6-v2'):
+    def __init__(self, root, split, model_name=sentence_embedder):
 
         path = os.path.join(root, f'data/cebab/cebab_{split}.csv')
         self.data = pd.read_csv(path)
@@ -76,7 +78,7 @@ def collate_fn(batch):
 
 
 class IMDBDataset(Dataset):
-    def __init__(self, root, split, model_name='all-MiniLM-L6-v2'):
+    def __init__(self, root, split, model_name=sentence_embedder):
         """
         Initialize the dataset with a CSV file and tokenizer.
 

@@ -209,7 +209,7 @@ def main(args):
             concept_encoder.embedding_interventions = False
             params['concept_encoder'] = concept_encoder
             csv_file_path = os.path.join(interventions_dir, 'metrics_concept_score_intervention.csv')
-            epss = [0, 0.25, 0.5, 0.75, 1]
+            epss = [0, 0.2, 0.4, 0.6, 0.8, 1]
             p_ints = np.arange(0, 1.1, 0.1)
             for eps in epss:
                 params['corruption'] = eps

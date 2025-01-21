@@ -23,29 +23,52 @@ def D_kl_gaussian(mu_q, logvar_q, mu_p, with_variance=True):
     return value.mean()
 
 class EarlyStopper:
-    def __init__(self, patience=1, min_delta=0):
+    def __init__(self, patience=1, min_delta=0, separate=False):
         self.patience = patience
         self.min_delta = min_delta
         self.counter = 0
-        self.min_task = float('inf')
-        self.min_concept = float('inf')
-        self.min_kl = float('inf')
+        if separate:
+            self.min_task = float('inf')
+            self.min_concept = float('inf')
+            self.min_kl = float('inf')
+        else:
+            self.min_loss = float('inf')
         self.best_iteration = True
+        self.separate = separate
 
-    def early_stop(self, task, concept, kl):
+    def early_stop_separate(self, task, concept, kl):
         if (task-self.min_task)<-self.min_delta or (concept-self.min_concept)<-self.min_delta or (kl-self.min_kl)<-self.min_delta:
             self.min_task = task if task < self.min_task else self.min_task
             self.min_concept = concept if concept < self.min_concept else self.min_concept
             self.min_kl = kl if kl < self.min_kl else self.min_kl
             self.counter = 0
             self.best_iteration = True
-        #elif task > (self.min_task + self.min_delta) and concept > (self.min_concept + self.min_delta) and kl > (self.min_kl + self.min_delta):
         else:
             self.counter += 1
             self.best_iteration = False
             if self.counter >= self.patience:
                 return True
         return False
+
+    def early_stop_sum(self, task, concept, kl):
+        loss = task + concept + kl
+        if (loss-self.min_loss)<-self.min_delta:
+            self.min_loss = loss
+            self.counter = 0
+            self.best_iteration = True
+        else:
+            self.counter += 1
+            self.best_iteration = False
+            if self.counter >= self.patience:
+                return True
+        return False
+    
+    def early_stop(self, task, concept, kl):
+        if self.separate:
+            return self.early_stop_separate(task, concept, kl)
+        else:
+            return self.early_stop_sum(task, concept, kl)
+        
 
 def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False):
     
