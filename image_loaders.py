@@ -276,6 +276,48 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, dataset='./datasets/', nu
 # Additionally differently fom the others, this loader can be use like this:
 # for image, (concepts, label) in loaded_train:
 
+#ID:           Attribute:  Balance:
+#24             No_Beard  0.834940
+#39                Young  0.773617
+#2            Attractive  0.512505
+#21  Mouth_Slightly_Open  0.483428
+#31              Smiling  0.482080
+#36     Wearing_Lipstick  0.472436
+#19      High_Cheekbones  0.455032
+#20                 Male  0.416754
+#18         Heavy_Makeup  0.386922
+#33            Wavy_Hair  0.319567
+#25            Oval_Face  0.284143
+#27          Pointy_Nose  0.277445
+#1       Arched_Eyebrows  0.266981
+#6              Big_Lips  0.240796
+#8            Black_Hair  0.239251
+#7              Big_Nose  0.234532
+#32        Straight_Hair  0.208402
+#11           Brown_Hair  0.205194
+#3       Bags_Under_Eyes  0.204572
+#34     Wearing_Earrings  0.188925
+#5                 Bangs  0.151575
+#9            Blond_Hair  0.147992
+#12       Bushy_Eyebrows  0.142168
+#37     Wearing_Necklace  0.122967
+#23          Narrow_Eyes  0.115149
+#0      5_o_Clock_Shadow  0.111136
+#28    Receding_Hairline  0.079778
+#38      Wearing_Necktie  0.072715
+#29          Rosy_Cheeks  0.065721
+#15           Eyeglasses  0.065119
+#16               Goatee  0.062764
+#13               Chubby  0.057567
+#30            Sideburns  0.056511
+#10               Blurry  0.050899
+#35          Wearing_Hat  0.048460
+#14          Double_Chin  0.046688
+#26            Pale_Skin  0.042947
+#17            Gray_Hair  0.041950
+#22             Mustache  0.041545
+#4                  Bald  0.022443
+
 class CelebADataset(CelebA):
     """
     The CelebA dataset is a large-scale face attributes dataset with more than
@@ -354,10 +396,7 @@ def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', clas
     generator = torch.Generator().manual_seed(seed) 
 
     train_transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(degrees=10), 
-        transforms.Resize((280, 280)),  # image_size + 1/4 * image_size
-        transforms.RandomResizedCrop((224, 224)),
+        transforms.Resize((224, 224)),
         transforms.ToTensor()
         ])
     test_transform = transforms.Compose([
