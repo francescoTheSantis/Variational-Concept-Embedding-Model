@@ -5,6 +5,7 @@ from torchvision.models import resnet34
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader, random_split, TensorDataset
 from torch import nn
+from typing import List
 import numpy as np
 from PIL import Image
 
@@ -275,7 +276,81 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, dataset='./datasets/', nu
 # Additionally differently fom the others, this loader can be use like this:
 # for image, (concepts, label) in loaded_train:
 
-def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', num_workers=3, pin_memory=True, augment=True, shuffle=True):
+class CelebADataset(CelebA):
+    """
+    The CelebA dataset is a large-scale face attributes dataset with more than
+    200K celebrity images, each with 40 attribute annotations. This class
+    extends the CelebA dataset to extract concept and task attributes based on
+    class attributes.
+
+    The dataset can be downloaded from the official
+    website: http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html.
+
+    Attributes:
+        root: The root directory where the dataset is stored.
+        split: The split of the dataset to use. Default is 'train'.
+        transform: The transformations to apply to the images. Default is None.
+        download: Whether to download the dataset if it does not exist. Default
+            is False.
+        class_attributes: The class attributes to use for the task. Default is
+            None.
+    """
+    def __init__(
+        self, root: str, split: str = 'train',
+        transform = None,
+        download: bool = False,
+        class_attributes: List[str] = None,
+        concept_names: List[str] = None,
+    ):
+        super(CelebADataset, self).__init__(
+            root,
+            split=split,
+            target_type="attr",
+            transform=transform,
+            download=download,
+        )
+
+        # Set the class attributes
+        if class_attributes is None:
+            # Default to 'Male' if no class_attributes provided
+            self.class_idx = [self.attr_names.index('Male')]
+        else:
+            # Use the provided class attributes
+            self.class_idx = [
+                self.attr_names.index(attr) for attr in class_attributes
+            ]
+
+        self.attr_names = [string for string in self.attr_names if string]
+
+        if concept_names is not None:
+            # Get indices for the concept names
+            self.concept_idx = [self.attr_names.index(concept) for concept in concept_names]
+    
+            # Check for overlap between concept indices and class indices
+            overlapping_indices = set(self.concept_idx) & set(self.class_idx)
+            if overlapping_indices:
+                overlapping_names = [self.attr_names[i] for i in overlapping_indices]
+                raise ValueError(f"Overlap detected between concept names and class attributes: {overlapping_names}")
+        else:
+            # Determine concept attribute names based on class attributes
+            self.concept_idx = [i for i in range(len(self.attr_names)) if i not in self.class_idx]
+
+        self.concept_attr_names = [self.attr_names[i] for i in self.concept_idx]
+        self.task_attr_names = [self.attr_names[i] for i in self.class_idx]
+
+    def __getitem__(self, index: int):
+        image, attributes = super(CelebADataset, self).__getitem__(index)
+
+        # Extract the target (y) based on the class index
+        y = torch.stack([attributes[i] for i in self.class_idx])
+
+        # Extract concept attributes, excluding the class attributes
+        concept_attributes = torch.stack([attributes[i] for i in self.concept_idx])
+
+        return image, concept_attributes, y
+
+
+def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', class_attributes=['Male'], concept_names=['Straight_Hair'], num_workers=3, pin_memory=True, shuffle=True):
     generator = torch.Generator().manual_seed(seed) 
 
     train_transform = transforms.Compose([
@@ -285,19 +360,16 @@ def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', num_
         transforms.RandomResizedCrop((224, 224)),
         transforms.ToTensor()
         ])
-    
     test_transform = transforms.Compose([
         transforms.Resize((224, 224)), 
         transforms.ToTensor()
-        ]) 
+        ])
 
     #Download in the following lines is set to false due to a known torchvision issue which has 
     #never been solved. YOU HAVE TO DOWNLOAD Celeba MANUALLY and unzip it in the folder you use as root
     #https://stackoverflow.com/questions/70896841/error-downloading-celeba-dataset-using-torchvision
-    train_dataset = datasets.CelebA(root=dataset, split="train", target_type=["attr", "identity"],
-                                           transform=train_transform, download=False)
-    test_dataset = datasets.CelebA(root=dataset, split="test", target_type=["attr", "identity"],
-                                           transform=test_transform, download=False)
+    train_dataset = CelebADataset(root=dataset, split="train", class_attributes=class_attributes, concept_names=concept_names, transform=train_transform, download=False)
+    test_dataset = CelebADataset(root=dataset, split="test", class_attributes=class_attributes, concept_names=concept_names, transform=test_transform, download=False)
 
     val_size = int(len(train_dataset) * val_size)
     train_size = len(train_dataset) - val_size
