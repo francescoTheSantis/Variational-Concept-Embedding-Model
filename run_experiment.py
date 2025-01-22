@@ -40,7 +40,12 @@ def main(args):
         E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=args.device)
         loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
     elif args.dataset == 'celeba':
-        pass
+        concept_names = ['Mouth_Slightly_Open', 'Smiling', 'Wearing_Lipstick', 'High_Cheekbones', 'Heavy_Makeup', 'Wavy_Hair', 'Oval_Face', 'Pointy_Nose', 'Arched_Eyebrows', 'Big_Lips'] # 'Wearing_Lipstick', 'Heavy_Makeup'
+        class_attributes = ['Attractive']        
+        loaded_train, loaded_val, loaded_test = CelebA_loader(args.batch_size, val_size=0.1, seed = 42, dataset=f'{args.root}/data', class_attributes=class_attributes, concept_names=concept_names, num_workers=3, pin_memory=True, shuffle=True)
+        #loaded_train, loaded_val, loaded_test = CUB200_loader(args.batch_size, val_size=0.1, seed=42, dataset=f'{args.root}/data/cub', num_workers=3, pin_memory=True, augment=True, shuffle=True)
+        E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=args.device)
+        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
     elif args.dataset == 'cebab':
         loaded_train = CEBABDataset(args.root, 'train', model_name='all-MiniLM-L6-v2')
         loaded_val = CEBABDataset(args.root, 'validation', model_name='all-MiniLM-L6-v2')
@@ -76,7 +81,9 @@ def main(args):
         n_concepts = 112
         n_labels = 200
     elif args.dataset == 'celeba':
-        pass
+        in_features = 512
+        n_concepts = len(concept_names)
+        n_labels = 2
     elif args.dataset == 'cebab':
         in_features = 384
         n_concepts = 4
@@ -192,7 +199,7 @@ def main(args):
         if not os.path.exists(interventions_dir):
             os.makedirs(interventions_dir)
         csv_file_path = os.path.join(interventions_dir, 'metrics.csv')
-        epss = [0, 0.1, 0.25, 0.5, 0.75, 1]
+        epss = [0, 0.1, 0.2, 0.4, 0.6, 0.8, 1]
         p_ints = np.arange(0, 1.1, 0.1)
         for eps in epss:
             params['corruption'] = eps
@@ -209,8 +216,6 @@ def main(args):
             concept_encoder.embedding_interventions = False
             params['concept_encoder'] = concept_encoder
             csv_file_path = os.path.join(interventions_dir, 'metrics_concept_score_intervention.csv')
-            epss = [0, 0.2, 0.4, 0.6, 0.8, 1]
-            p_ints = np.arange(0, 1.1, 0.1)
             for eps in epss:
                 params['corruption'] = eps
                 for p_int in p_ints:
