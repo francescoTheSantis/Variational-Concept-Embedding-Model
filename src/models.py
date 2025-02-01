@@ -7,16 +7,22 @@ class V_CEM(pl.LightningModule):
     def __init__(self, 
                  in_size, 
                  n_concepts, 
+                 n_classes,
                  emb_size, 
-                 embedding_interventions=True, 
-                 sampling=False):
+                 task_penalty,
+                 kl_penalty,
+                 embedding_interventions=True,
+                 p_int_train=0):
         super().__init__()
 
         self.in_size = in_size
         self.n_concepts = n_concepts
         self.emb_size = emb_size
         self.embedding_interventions = embedding_interventions
-        self.sampling = sampling
+        self.task_penalty = task_penalty
+        self.kl_penalty = kl_penalty
+        self.n_classes = n_classes
+        self.p_int_train = p_int_train
 
         # Initialize learnable concept prototypes using normal distribution
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -46,8 +52,13 @@ class V_CEM(pl.LightningModule):
             self.layers.append(layers)
 
             self.mu_layer.append(nn.Linear(self.in_size + 1, self.emb_size))  
-
             self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
+
+        self.classifier = nn.Sequential(
+            nn.Linear(self.emb_size*self.n_concepts, self.n_concepts),
+            nn.ReLU(),
+            nn.Linear(self.n_concepts, self.n_classes)
+        )
 
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
         c_int = c_int.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
@@ -77,7 +88,7 @@ class V_CEM(pl.LightningModule):
             mu = self.mu_layer[i](emb)
             logvar = self.logvar_layer[i](emb)
             # during training we sample from the multivariate normal distribution, at test-time we take MAP.
-            if self.training and self.sampling:
+            if self.training:
                 c_emb = self.reparameterize(mu, logvar)
             else:
                 c_emb = mu
@@ -95,12 +106,32 @@ class V_CEM(pl.LightningModule):
         c_pred = torch.cat(c_pred_list, dim=1)[:,:,0] # (batch_size, n_concepts)
         mu = torch.cat(mu_list, dim=1) # (batch_size, n_concepts, emb_size)
         logvar = torch.cat(logvar_list, dim=1) # (batch_size, n_concepts, emb_size)
-        return c_pred, c_emb, mu, logvar
+
+        y_pred = self.classifier(c_emb.view(bsz, -1))
+
+        return y_pred, c_pred, c_emb, mu, logvar
 
     def training_step(self, batch, batch_idx):
-        D_kl = 0
-        concept_loss = 0
+        concept_form = nn.BCELoss()
+        task_form = nn.CrossEntropyLoss()
+
+        x, concept_labels, y = batch
+        y_pred, c_pred, _, mu, logvar = self(x, concept_labels)
+
+        # compute the concept loss and avergae over the number of concepts
+        for i in range(self.n_concepts):
+            concept_loss += concept_form(c_pred[:,i], concept_labels[:,i])
+        concept_loss /= self.n_concepts 
     
+        task_loss = task_form(y_pred, y.long()) * self.task_penalty 
+
+        cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.emb_size)
+        prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + \
+            (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
+        D_kl = D_kl_gaussian(mu, logvar, prototype_emb) * self.kl_penalty
+        loss = concept_loss + task_loss + D_kl
+
+        return loss
 
 
 if __name__ == '__main__':

@@ -1,0 +1,22 @@
+name: v_cem
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.8
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - jupyter
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-lightning
+  - pip
+  - pip:
+    - requests
+    - flask
+    - transformers
