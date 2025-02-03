@@ -1,0 +1,9 @@
+loader:
+  _target_: src.loaders.image_loaders.MNIST_addition_loader
+  batch_size: ${batch_size}  
+  seed: ${seed}
+
+metadata:
+  n_concepts: 10
+  n_labels: 20
+  val_size: 0.1

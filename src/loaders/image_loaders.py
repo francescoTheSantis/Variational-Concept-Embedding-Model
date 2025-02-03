@@ -1,7 +1,6 @@
 import torch
 from torchvision.datasets import CelebA
 from typing import List
-from torchvision.models import resnet34
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader, random_split, TensorDataset
 from torch import nn
@@ -12,7 +11,75 @@ from PIL import Image
 import os, re
 import requests
 import tarfile
+from transformers import ViTModel, ViTFeatureExtractor
+from tqdm import tqdm
 
+
+class EmbeddingExtractor:
+    def __init__(self, train_loader, val_loader, test_loader, device='cuda', celeba=False):
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.device = device
+        self.celeba = celeba
+        
+        # Load ViT model pre-trained on ImageNet
+        self.feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch32-224-in21k')
+        self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
+        self.model = self.model.to(self.device)
+        self.model.eval()
+
+    def _extract_embeddings(self, loader):
+        """Helper function to extract embeddings for a given DataLoader."""
+        embeddings = []
+        concepts_list = []
+        labels = []
+
+        with torch.no_grad():
+            if not self.celeba:
+                for images, concepts, targets in tqdm(loader):
+                    images = images.to(self.device)
+                    # Extract embeddings
+                    outputs = self.model(images)
+                    # Get the [CLS] token representation
+                    output = outputs.last_hidden_state[:, 0, :]
+                    embeddings.append(output.cpu())
+                    concepts_list.append(concepts.cpu())
+                    labels.append(targets.cpu())
+            else:
+                for images, (concepts, targets) in tqdm(loader):
+                    images = images.to(self.device)
+                    outputs = self.model(images)
+                    output = outputs.last_hidden_state[:, 0, :]
+                    embeddings.append(output.cpu())
+                    concepts_list.append(concepts.cpu())
+                    labels.append(targets.cpu())
+                
+        # Concatenate all embeddings and labels
+        embeddings = torch.cat(embeddings, dim=0)
+        concepts = torch.cat(concepts_list, dim=0)
+        labels = torch.cat(labels, dim=0)
+        return embeddings, concepts.float(), labels
+
+    def _create_loader(self, embeddings, concepts, labels, batch_size):
+        """Helper function to create a DataLoader from embeddings and labels."""
+        dataset = TensorDataset(embeddings, concepts, labels)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    def produce_loaders(self):
+        """Produces new DataLoaders with embeddings instead of raw images."""
+        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
+        val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
+        test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
+
+        batch_size = self.train_loader.batch_size
+
+        train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, batch_size)
+        val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, batch_size)
+        test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, batch_size)
+
+        return train_loader, val_loader, test_loader
+    
 
 class CustomDataset(Dataset):
     def __init__(self, mean, std, images, labels, digits):
@@ -63,6 +130,7 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_
     train_dataset = datasets.MNIST(root='./datasets/', train=True, download=True)
     test_dataset = datasets.MNIST(root='./datasets/', train=False)
 
+    print('Generating pairs for training and test sets...')
     # Create composed training-set
     unique_pairs = [str(x)+str(y) for x in range(10) for y in range(10)]
     X_train = []
@@ -107,6 +175,12 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('Extracting embeddings...')
+    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
+    train_loader, val_loader, test_loader = E_extr.produce_loaders()
+
     return train_loader, val_loader, test_loader
 
 
@@ -424,70 +498,4 @@ def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', clas
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
 
     return train_loader, val_loader, test_loader
-    
 
-class EmbeddingExtractor:
-    def __init__(self, train_loader, val_loader, test_loader, device='cuda', celeba=False):
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.test_loader = test_loader
-        self.device = device
-        self.celeba = celeba
-        
-        # Load ResNet34 model pre-trained on ImageNet
-        self.model = resnet34(pretrained=True)
-        # Remove the fully connected layer to get embeddings
-        self.model = nn.Sequential(*list(self.model.children())[:-1])
-        self.model = self.model.to(self.device)
-        self.model.eval()
-
-    def _extract_embeddings(self, loader):
-        """Helper function to extract embeddings for a given DataLoader."""
-        embeddings = []
-        concepts_list = []
-        labels = []
-
-        with torch.no_grad():
-            if not self.celeba:
-                for images, concepts, targets in loader:
-                    images = images.to(self.device)
-                    # Extract embeddings
-                    output = self.model(images)
-                    # Flatten the output from (batch_size, 512, 1, 1) to (batch_size, 512)
-                    output = output.view(output.size(0), -1)
-                    embeddings.append(output.cpu())
-                    concepts_list.append(concepts.cpu())
-                    labels.append(targets.cpu())
-            else:
-                for images, (concepts, targets) in loader:
-                    images = images.to(self.device)
-                    output = self.model(images)
-                    output = output.view(output.size(0), -1)
-                    embeddings.append(output.cpu())
-                    concepts_list.append(concepts.cpu())
-                    labels.append(targets.cpu())
-                
-        # Concatenate all embeddings and labels
-        embeddings = torch.cat(embeddings, dim=0)
-        concepts = torch.cat(concepts_list, dim=0)
-        labels = torch.cat(labels, dim=0)
-        return embeddings, concepts.float(), labels
-
-    def _create_loader(self, embeddings, concepts, labels, batch_size):
-        """Helper function to create a DataLoader from embeddings and labels."""
-        dataset = TensorDataset(embeddings, concepts, labels)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    def produce_loaders(self):
-        """Produces new DataLoaders with embeddings instead of raw images."""
-        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
-        val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
-        test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
-
-        batch_size = self.train_loader.batch_size
-
-        train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, batch_size)
-        val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, batch_size)
-        test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, batch_size)
-
-        return train_loader, val_loader, test_loader

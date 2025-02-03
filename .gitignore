@@ -6,3 +6,7 @@ data/
 # Ignore the result folder
 results/
 
+# Ignore multirun
+multirun/
+
+

@@ -10,26 +10,89 @@ import os
 import csv
 import pandas as pd
 import hydra
-#from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger
 from omegaconf import DictConfig
 from hydra.utils import instantiate
-
+from src.trainer import Trainer
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 @hydra.main(config_path="config", config_name="sweep")
 def main(cfg: DictConfig) -> None:
 
-    #wandb_logger = WandbLogger(project=cfg.wandb.project, entity=cfg.wandb.entity)
+    wandb_logger = WandbLogger(project=cfg.wandb.project, entity=cfg.wandb.entity)
+
+    print("Configuration Parameters:")
+    for key, value in cfg.items():
+        print(f"{key}: {value}")
+    print('\n')
+
 
     set_seed(cfg.seed)
+    '''
     output_dir = os.path.join(cfg.root, 'results', cfg.model, cfg.dataset, str(cfg.seed)) 
     if not os.path.exists(output_dir):
         print('Results folder created')
         os.makedirs(output_dir)
     print('Results will be saved to:', output_dir)
+    '''
 
     # dataset is a dicitonary which contains the different data splits (train, val and test)
-    # and the other parameters related to the dataset
-    dataset = instantiate(cfg.dataset)
+    # and the other parameters related to the dataset
+    loaded_train, loaded_val, loaded_test = instantiate(cfg.dataset.loader)
+
+    # instantiate the model
+    model = instantiate(cfg.model)
+
+    # Initialize the trainer
+    # Add model checkpoint callback to save the best model based on validation loss
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_loss',
+        dirpath='checkpoints',
+        filename='best-checkpoint',
+        save_top_k=1,
+        mode='min'
+    )
+
+    early_stopping_callback = EarlyStopping(
+        monitor='val_loss',
+        patience=cfg.patience,
+        verbose=True,
+        mode='min'
+    )
+
+    # Initialize the trainer with early stopping and checkpoint callbacks
+    trainer = Trainer(
+        max_epochs=cfg.epochs,
+        logger=wandb_logger,
+        gpus=1 if torch.cuda.is_available() else 0,
+        callbacks=[early_stopping_callback, checkpoint_callback]
+    )
+    trainer = Trainer(
+        max_epochs=cfg.epochs,
+        logger=wandb_logger,
+        gpus=1 if torch.cuda.is_available() else 0
+    )
+
+    # Train the model
+    trainer.fit(model, loaded_train, loaded_val)
+
+    # Test the model
+    test_results = trainer.test(model, dataloaders=loaded_test)
+    print(f"Test Results: {test_results}")
+
+    # Log test results to Wandb
+    wandb_logger.log_metrics({"test_loss": test_results[0]['test_loss'], "test_accuracy": test_results[0]['test_acc']})
+    # Add early stopping callback
+
+
+    # Update the trainer to include the early stopping callback
+    trainer = Trainer(
+        max_epochs=cfg.epochs,
+        logger=wandb_logger,
+        gpus=1 if torch.cuda.is_available() else 0,
+        callbacks=[early_stopping_callback]
+    )
 
     '''
     if cfg.dataset in ['xor', 'and', 'or', 'trigonometry', 'dot']:
@@ -93,7 +156,6 @@ def main(cfg: DictConfig) -> None:
         in_features = 384
         n_concepts = 8
         n_labels = 2
-    '''
 
     if cfg.model == 'e2e':
         classifier = nn.Sequential(
@@ -141,6 +203,8 @@ def main(cfg: DictConfig) -> None:
             nn.Linear(in_features, n_concepts),
             nn.Sigmoid()
         ) 
+    '''
+
 
 
 
