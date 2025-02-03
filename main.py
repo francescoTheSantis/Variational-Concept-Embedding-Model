@@ -1,9 +1,9 @@
 import argparse
-from toy_loaders import *
-from text_loaders import *
+from src.toy_loaders import *
+from src.text_loaders import *
 from models.v_cem import *
-from training import *
-from utilities import *
+from src.training import *
+from src.utilities import *
 import os
 import csv
 import pandas as pd

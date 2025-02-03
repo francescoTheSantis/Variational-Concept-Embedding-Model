@@ -1,0 +1,10 @@
+# .gitignore
+
+# Ignore the dataset folder
+data/
+
+# Ignore the result folder
+results/
+
+# Ignore old files
+_OLD/
