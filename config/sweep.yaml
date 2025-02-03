@@ -1,0 +1,11 @@
+
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      seed: 1, 2, 3, 4, 5
+      dataset: mnist_addition_incomplete, celeba, cub200, cebab, imdb, xor
+      # blackbox, cbm_linear, cbm_mlp, cem, crm
+      model: blackbox, cbm_linear, cbm_mlp, cem, v_cem
+

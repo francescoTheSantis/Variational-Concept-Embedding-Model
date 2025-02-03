@@ -1,20 +1,19 @@
-name: v_cem
+name: test
 channels:
   - defaults
   - conda-forge
   - pytorch
 dependencies:
-  - python=3.10.9
+  - python=3.13.1
   - numpy
   - pandas
   - scipy
   - scikit-learn
   - matplotlib
-  - jupyter
   - pytorch
   - torchvision
-  - torchaudio
   - pytorch-lightning
   - pip
   - pip:
-    - transformers
+    - wandb
+    - sentence-transformers

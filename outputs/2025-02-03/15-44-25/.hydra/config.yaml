@@ -1,0 +1,10 @@
+trainer:
+  max_epochs: 500
+  patience: 20
+model:
+  lr: 0.001
+data:
+  batch_size: 64
+wandb:
+  project: mnist_project
+  entity: your_wandb_entity

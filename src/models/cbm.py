@@ -5,24 +5,32 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class ConceptBottleneckModel(pl.LightningModule):
-    def __init__(self, input_dim, concept_dim, output_dim, learning_rate=1e-3):
+    def __init__(self, 
+                 input_dim, 
+                 n_concepts, 
+                 n_labels,
+                 task_interpretable=True):
         super(ConceptBottleneckModel, self).__init__()
-        self.learning_rate = learning_rate
 
         # Encoder: Maps input to concepts
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, concept_dim),
+            nn.Linear(128, n_concepts),
             nn.Sigmoid()
         )
 
         # Decoder: Maps concepts to output
-        self.decoder = nn.Sequential(
-            nn.Linear(concept_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, output_dim)
-        )
+        if task_interpretable:
+            self.decoder = nn.Sequential(
+                nn.Linear(n_concepts, n_labels)
+            )
+        else:
+            self.decoder = nn.Sequential(
+                nn.Linear(n_concepts, n_concepts),
+                nn.ReLU(),
+                nn.Linear(n_concepts, n_labels)
+            )
 
     def forward(self, x):
         concepts = self.encoder(x)

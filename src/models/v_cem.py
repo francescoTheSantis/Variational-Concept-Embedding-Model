@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from utilities import get_intervened_concepts_predictions, D_kl_gaussian
+from src.utilities import get_intervened_concepts_predictions, D_kl_gaussian
 
 class V_CEM(pl.LightningModule):
     def __init__(self, 
@@ -11,14 +11,12 @@ class V_CEM(pl.LightningModule):
                  emb_size, 
                  task_penalty,
                  kl_penalty,
-                 embedding_interventions=True,
-                 p_int_train=0):
+                 p_int_train=0.1):
         super().__init__()
 
         self.in_size = in_size
         self.n_concepts = n_concepts
         self.emb_size = emb_size
-        self.embedding_interventions = embedding_interventions
         self.task_penalty = task_penalty
         self.kl_penalty = kl_penalty
         self.n_classes = n_classes
@@ -75,14 +73,14 @@ class V_CEM(pl.LightningModule):
         eps = torch.randn_like(std)
         return mu + eps * std
     
-    def forward(self, x, c=None, p_int=0):
+    def forward(self, x, c=None, p_int=None):
         bsz = x.shape[0]
-        device = x.device
+        p_int = self.p_int_train if self.training else p_int
         c_pred_list, c_emb_list, mu_list, logvar_list = [], [], [], []
         x = self.shared_layers(x)
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
-            if c!=None and p_int>0 and self.embedding_interventions==False:
+            if c!=None and p_int!=None and self.training:
                 c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, False)
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
@@ -93,7 +91,7 @@ class V_CEM(pl.LightningModule):
             else:
                 c_emb = mu
             # apply prototype interventions
-            if c!=None and p_int>0 and self.embedding_interventions:
+            if c!=None and p_int!=None:
                 # generate the mask containing one for the indexes that have to be intervened and 0 otherwise
                 int_mask, c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, True)
                 c_emb = self.apply_intervention(c_pred, int_mask, c_emb, i)
@@ -111,34 +109,71 @@ class V_CEM(pl.LightningModule):
 
         return y_pred, c_pred, c_emb, mu, logvar
 
-    def training_step(self, batch, batch_idx):
+    def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
+        value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
+        return value.mean()
+
+    def compute_losses(self, y_pred, c_pred, mu, logvar, c, y):
         concept_form = nn.BCELoss()
         task_form = nn.CrossEntropyLoss()
 
-        x, concept_labels, y = batch
-        y_pred, c_pred, _, mu, logvar = self(x, concept_labels)
-
         # compute the concept loss and avergae over the number of concepts
+        concept_loss = 0
         for i in range(self.n_concepts):
-            concept_loss += concept_form(c_pred[:,i], concept_labels[:,i])
+            concept_loss += concept_form(c_pred[:,i], c[:,i])
         concept_loss /= self.n_concepts 
     
-        task_loss = task_form(y_pred, y.long()) * self.task_penalty 
+        # task loss
+        task_loss = task_form(y_pred, y.long())
 
+        # KL divergence
         cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.emb_size)
         prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + \
             (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
-        D_kl = D_kl_gaussian(mu, logvar, prototype_emb) * self.kl_penalty
-        loss = concept_loss + task_loss + D_kl
+        D_kl = D_kl_gaussian(mu, logvar, prototype_emb)
+        
+        return concept_loss, task_loss, D_kl
 
+    def training_step(self, batch, batch_idx):
+        x, concept_labels, y = batch
+        y_pred, c_pred, _, mu, logvar = self(x, concept_labels)
+
+        concept_loss, task_loss, D_kl = self.compute_losses(y_pred, c_pred, mu, logvar, concept_labels, y)
+
+        self.log('train_concept_loss', concept_loss)
+        self.log('train_task_loss', task_loss)
+        self.log('train_kl_loss', D_kl)
+        
+        loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        x, concept_labels, y = batch
+        y_pred, c_pred, _, mu, logvar = self(x, concept_labels)
+        print('Am i sampling?', self.training)
+
+        concept_loss, task_loss, D_kl = self.compute_losses(y_pred, c_pred, mu, logvar, concept_labels, y)
+
+        self.log('val_concept_loss', concept_loss)
+        self.log('val_task_loss', task_loss)
+        self.log('val_kl_loss', D_kl)
+        
+        loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
         return loss
 
+    def test_step(self, batch, batch_idx):
+        x, concept_labels, y = batch
+        y_pred, c_pred, _, mu, logvar = self(x, concept_labels)
 
-if __name__ == '__main__':
-    # Test model
-    model = V_CEM(10, 5, 3)
-    x = torch.randn(5, 10)
-    c = torch.randint(0, 2, (5, 5))
-    p_int = 0.5
-    c_pred, c_emb, mu, logvar = model(x, c, p_int)
-    print(c_pred.shape, c_emb.shape, mu.shape, logvar.shape)
+        concept_loss, task_loss, D_kl = self.compute_losses(y_pred, c_pred, mu, logvar, concept_labels, y)
+
+        self.log('test_concept_loss', concept_loss)
+        self.log('test_task_loss', task_loss)
+        self.log('test_kl_loss', D_kl)
+        
+        loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
+        return loss
+
+    def predict(self, x):
+        y_pred, c_pred, c_emb, mu, logvar = self(x)
+        return y_pred, c_pred, c_emb, mu, logvar
