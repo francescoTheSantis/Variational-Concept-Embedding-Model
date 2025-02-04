@@ -3,7 +3,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from src.utilities import get_intervened_concepts_predictions, D_kl_gaussian
 
-class V_CEM(pl.LightningModule):
+class VariationalConceptEmbeddingModel(pl.LightningModule):
     def __init__(self, 
                  in_size, 
                  n_concepts, 
@@ -74,9 +74,13 @@ class V_CEM(pl.LightningModule):
         eps = torch.randn_like(std)
         return mu + eps * std
     
-    def forward(self, x, c=None, p_int=None):
+    def forward(self, x, c=None, noise=None, p_int=None):
         bsz = x.shape[0]
         p_int = self.p_int_train if self.training else p_int
+        if noise!=None:
+            eps = torch.randn_like(x)
+            x = eps * noise + x * (1-noise)
+
         c_pred_list, c_emb_list, mu_list, logvar_list = [], [], [], []
         x = self.shared_layers(x)
         for i in range(self.n_concepts):
@@ -113,6 +117,14 @@ class V_CEM(pl.LightningModule):
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
         value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
         return value.mean()
+
+    def step(self, batch, batch_idx, noise=None, p_int=None):
+        x, concept_labels, y = batch
+        y_pred, c_pred, _, mu, logvar = self.forward(x, c, noise, p_int)
+        # compute losses
+        concept_loss, task_loss, D_kl = self.compute_losses(y_pred, c_pred, mu, logvar, concept_labels, y)
+
+        return loss, task_loss, concept_loss, c, y, c_pred, y_hat
 
     def compute_losses(self, y_pred, c_pred, mu, logvar, c, y):
         concept_form = nn.BCELoss()

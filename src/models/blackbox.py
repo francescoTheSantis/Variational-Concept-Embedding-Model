@@ -22,7 +22,7 @@ class BlackboxModel(pl.LightningModule):
         return x
 
     def step(self, batch, batch_idx):
-        x, y = batch
+        x, _, y = batch
         y_hat = self.forward(x)
         loss = F.cross_entropy(y_hat, y)
         return loss, y, y_hat
@@ -42,6 +42,7 @@ class BlackboxModel(pl.LightningModule):
 
         task_acc = self.task_metric(y_hat, y)
         self.log('test_task_acc', task_acc)
+        self.log('test_concept_acc', torch.tensor(0.0))
 
         return loss
 

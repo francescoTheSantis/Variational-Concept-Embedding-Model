@@ -9,4 +9,5 @@ loader:
 metadata:
   n_concepts: 10
   n_labels: 20
+  input_dim: 768 # output dimension of the vit32 cls
   name: mnist_addition

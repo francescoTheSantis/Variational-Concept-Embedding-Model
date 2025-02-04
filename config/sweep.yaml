@@ -1,12 +1,11 @@
-
 defaults:
   - dataset: mnist_addition
   - model: blackbox
 
-# substitute with your root directory
+## Working directory
 root: /home/bigdata-01QYD/s280037/Adversary-Aware-Concept-Embedding-Model/
 
-# Traninging parameters
+## Traninging parameters
 max_epochs: 10 #500
 patience: 20
 batch_size: 128
@@ -14,12 +13,17 @@ lr: 0.0001
 gamma: 0.5
 lr_step: 100
 
-# Model parameters
-input_dim: 768 # output dimension of vit32
-c_emb_size: 16
-p_int_training: 0.25
+## Model parameters
+task_penalty: 0.1
 
-# Experiment parameters
+# Only for concept embedding models
+c_emb_size: 16
+p_int_train: 0.25 
+
+# Only for our model
+kl_penalty: 1
+
+# Shared experimental parameters
 val_size: 0.1
 seed: 1
 gpus: 1
@@ -28,9 +32,10 @@ hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      seed: 1 # 
       dataset: mnist_addition
       model: cbm_linear #blackbox, cbm_mlp, cem, v_cem
+      seed: 1 # 
+
 
 wandb:
   project: "v_cem"        # Set your project name here

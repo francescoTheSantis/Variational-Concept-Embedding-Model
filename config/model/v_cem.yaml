@@ -1,0 +1,12 @@
+params:
+  _target_: "src.models.v_cem.VariationalConceptEmbeddingModel"
+  in_size: ${dataset.metadata.input_dim}
+  n_concepts: ${dataset.metadata.n_concepts}
+  n_classes: ${dataset.metadata.n_labels}
+  emb_size: ${c_emb_size}
+  task_penalty: ${task_penalty}
+  kl_penalty: 0.1
+  p_int_train: ${p_int_training}
+
+metadata:
+  name: v_cem

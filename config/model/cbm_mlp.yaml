@@ -1,8 +1,9 @@
 params:
   _target_: "src.models.cbm.ConceptBottleneckModel"
-  input_dim: ${input_dim}
+  input_dim: ${dataset.metadata.input_dim}
   n_concepts: ${dataset.metadata.n_concepts}
   n_labels: ${dataset.metadata.n_labels}
+  task_penalty: ${task_penalty}$
   task_interpretable: false
 
 metadata:

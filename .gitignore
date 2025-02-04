@@ -1,13 +1,11 @@
 # .gitignore
 
-# Ignore the dataset folder
 data/
 
-# Ignore the result folder
 results/
 
-# Ignore multirun
 multirun/
 
-# Ignore evaluate
 evaluate.ipynb
+
+figures/

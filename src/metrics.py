@@ -1,5 +1,6 @@
 import torch
 from torchmetrics import Metric
+from sklearn.metrics import f1_score, accuracy_score
 
 class Task_Accuracy(Metric):
     def __init__(self, dist_sync_on_step=False):
@@ -31,3 +32,17 @@ class Concept_Accuracy(Metric):
 
     def compute(self):
         return self.correct.float() / self.total
+    
+
+def f1_acc_metrics(y_true, y_pred):
+    # Convert PyTorch tensors to lists if necessary
+    if isinstance(y_true, torch.Tensor):
+        y_true = y_true.cpu().numpy().tolist()
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.cpu().numpy().tolist()
+    
+    # Calculate the F1 score
+    f1 = f1_score(y_true, y_pred, average='macro')
+    # Calculate the accuracy
+    accuracy = accuracy_score(y_true, y_pred)
+    return f1, accuracy

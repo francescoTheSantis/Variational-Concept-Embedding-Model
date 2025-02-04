@@ -2,6 +2,10 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 import torch
 from torch.optim import Adam
+import numpy as np
+import pandas as pd
+from src.metrics import f1_acc_metrics
+from tqdm import tqdm
 
 class Trainer:
     def __init__(self, model, cfg, wandb_logger, csv_logger):
@@ -9,6 +13,8 @@ class Trainer:
         self.wandb_logger = wandb_logger
         self.csv_logger = csv_logger
         self.model = model
+        self.epss = np.arange(0, 1.1, 0.1)
+        self.p_ints = np.arange(0, 1.1, 0.1)
 
     def build_trainer(self):
         early_stopping = EarlyStopping(
@@ -51,3 +57,28 @@ class Trainer:
     
     def test(self, test_dataloader):
         self.trainer.test(self.model, test_dataloader)
+
+    def interventions(self, test_dataloader):
+        intervention_df = pd.DataFrame(columns=['noise', 'p_int', 'f1', 'accuracy'])
+        self.model.eval()
+        with torch.no_grad():
+            for eps in self.epss:
+                print('Performing interventions with noise:', eps)
+                for p_int in tqdm(self.p_ints):
+                    y_preds = []
+                    y_trues = []
+                    for batch in test_dataloader:
+                        x, c, y = batch
+                        output = self.model.forward(x, c, eps, p_int)
+                        y_pred = output[1]
+                        y_preds.append(y_pred)
+                        y_trues.append(y)
+                    y = torch.cat(y_trues, dim=0)
+                    y_preds = torch.cat(y_preds, dim=0)
+                    y = y.cpu().numpy()
+                    y_preds = y_preds.argmax(-1).cpu().numpy()
+                    task_f1, task_acc = f1_acc_metrics(y, y_preds)
+                    intervention_results = {'noise': round(eps,1), 'p_int': round(p_int,1), 'f1': round(task_f1,2), 'accuracy': round(task_acc,2)}
+                    intervention_df = pd.concat([intervention_df, pd.DataFrame([intervention_results])], ignore_index=True)
+        return intervention_df
+
