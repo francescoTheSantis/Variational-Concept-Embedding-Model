@@ -132,6 +132,10 @@ class ConceptEmbeddingModel(ConceptBottleneckModel):
         self.pre_concept_model = c_extractor_arch(output_dim=None)
         self.training_intervention_prob = training_intervention_prob
         self.output_latent = output_latent
+
+        # Additional parameter used to determine if the model has concepts
+        self.has_concepts = True
+
         if self.training_intervention_prob != 0:
             self.ones = torch.ones(n_concepts)
 

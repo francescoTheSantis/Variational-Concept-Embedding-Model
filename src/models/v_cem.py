@@ -21,6 +21,7 @@ class V_CEM(pl.LightningModule):
         self.kl_penalty = kl_penalty
         self.n_classes = n_classes
         self.p_int_train = p_int_train
+        self.has_concepts = True
 
         # Initialize learnable concept prototypes using normal distribution
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -174,6 +175,4 @@ class V_CEM(pl.LightningModule):
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
         return loss
 
-    def predict(self, x):
-        y_pred, c_pred, c_emb, mu, logvar = self(x)
-        return y_pred, c_pred, c_emb, mu, logvar
+    

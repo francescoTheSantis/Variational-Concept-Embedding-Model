@@ -9,4 +9,5 @@ results/
 # Ignore multirun
 multirun/
 
-
+# Ignore evaluate
+evaluate.ipynb

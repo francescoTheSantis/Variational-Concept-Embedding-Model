@@ -5,15 +5,24 @@ defaults:
 
 # substitute with your root directory
 root: /home/bigdata-01QYD/s280037/Adversary-Aware-Concept-Embedding-Model/
-devices: 1
-optimizer: adam
-max_epochs: 500
-patience: 40
+
+# Traninging parameters
+max_epochs: 10 #500
+patience: 20
 batch_size: 128
-input_dim: 784 # output dimension of vit32
-seed: 1
+lr: 0.0001
+gamma: 0.5
+lr_step: 100
+
+# Model parameters
+input_dim: 768 # output dimension of vit32
 c_emb_size: 16
 p_int_training: 0.25
+
+# Experiment parameters
+val_size: 0.1
+seed: 1
+gpus: 1
 
 hydra:
   mode: MULTIRUN
@@ -21,15 +30,10 @@ hydra:
     params:
       seed: 1 # 
       dataset: mnist_addition
-      model: blackbox #, cbm_linear, cbm_mlp #, cem, v_cem
-
-
-
-
+      model: cbm_linear #blackbox, cbm_mlp, cem, v_cem
 
 wandb:
   project: "v_cem"        # Set your project name here
   entity: "francescothesantis-politecnico-di-torino"  # Set your entity name here
-
 
 note: test

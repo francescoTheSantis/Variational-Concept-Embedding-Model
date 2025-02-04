@@ -18,6 +18,7 @@ def set_seed(seed: int):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
         
+'''
 def D_kl_gaussian(mu_q, logvar_q, mu_p, with_variance=True):
     if with_variance:
         value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
@@ -71,7 +72,7 @@ class EarlyStopper:
             return self.early_stop_separate(task, concept, kl)
         else:
             return self.early_stop_sum(task, concept, kl)
-        
+'''
 
 def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False):
     
@@ -96,6 +97,7 @@ def get_intervened_concepts_predictions(predictions, labels, probability, return
     else:
         return intervened
 
+'''
 def plot_training_curves(train_task_losses, val_task_losses, train_concept_losses, val_concept_losses, d_kl, val_d_kl, output_folder=None):
 
     fig, axs = plt.subplots(1, 3, figsize=(14, 5))
@@ -142,4 +144,4 @@ def f1_acc_metrics(y_true, y_pred):
     # Calculate the accuracy
     accuracy = accuracy_score(y_true, y_pred)
     return f1, accuracy
-
+'''

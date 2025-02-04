@@ -5,209 +5,56 @@
 #from src.models.cbm import *
 #from src.models.cem import *
 
+from src.models.blackbox import BlackboxModel
+from src.models.cbm import ConceptBottleneckModel
+
 from src.utilities import *
-import os
-import csv
-import pandas as pd
+from src.trainer import Trainer
 import hydra
-from pytorch_lightning.loggers import WandbLogger
 from omegaconf import DictConfig
 from hydra.utils import instantiate
-from src.trainer import Trainer
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.callbacks import ModelCheckpoint
+import wandb
+from src.utilities import set_seed
+from pytorch_lightning.loggers import WandbLogger, CSVLogger
 
 @hydra.main(config_path="config", config_name="sweep")
 def main(cfg: DictConfig) -> None:
 
-    wandb_logger = WandbLogger(project=cfg.wandb.project, entity=cfg.wandb.entity)
+    wandb.init(project=cfg.wandb.project,
+               entity=cfg.wandb.entity, 
+               name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
+    wandb_logger = WandbLogger(project=cfg.wandb.project, 
+                               entity=cfg.wandb.entity, 
+                               name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
+    csv_logger = CSVLogger("logs/", name="experiment_metrics")
 
     print("Configuration Parameters:")
     for key, value in cfg.items():
         print(f"{key}: {value}")
     print('\n')
 
-
     set_seed(cfg.seed)
-    '''
-    output_dir = os.path.join(cfg.root, 'results', cfg.model, cfg.dataset, str(cfg.seed)) 
-    if not os.path.exists(output_dir):
-        print('Results folder created')
-        os.makedirs(output_dir)
-    print('Results will be saved to:', output_dir)
-    '''
 
-    # dataset is a dicitonary which contains the different data splits (train, val and test)
-    # and the other parameters related to the dataset
+    ######  Load the data ######
     loaded_train, loaded_val, loaded_test = instantiate(cfg.dataset.loader)
 
-    # instantiate the model
-    model = instantiate(cfg.model)
+    ###### Instantiate the model ######
+    model = instantiate(cfg.model.params)
 
+    ####### Training ########
     # Initialize the trainer
-    # Add model checkpoint callback to save the best model based on validation loss
-    checkpoint_callback = ModelCheckpoint(
-        monitor='val_loss',
-        dirpath='checkpoints',
-        filename='best-checkpoint',
-        save_top_k=1,
-        mode='min'
-    )
-
-    early_stopping_callback = EarlyStopping(
-        monitor='val_loss',
-        patience=cfg.patience,
-        verbose=True,
-        mode='min'
-    )
-
-    # Initialize the trainer with early stopping and checkpoint callbacks
-    trainer = Trainer(
-        max_epochs=cfg.epochs,
-        logger=wandb_logger,
-        gpus=1 if torch.cuda.is_available() else 0,
-        callbacks=[early_stopping_callback, checkpoint_callback]
-    )
-    trainer = Trainer(
-        max_epochs=cfg.epochs,
-        logger=wandb_logger,
-        gpus=1 if torch.cuda.is_available() else 0
-    )
-
+    trainer = Trainer(model, cfg, wandb_logger, csv_logger)
+    trainer.build_trainer()
+    
     # Train the model
-    trainer.fit(model, loaded_train, loaded_val)
+    trainer.train(loaded_train, loaded_val)
 
-    # Test the model
-    test_results = trainer.test(model, dataloaders=loaded_test)
-    print(f"Test Results: {test_results}")
+    ###### Test ########
+    # Test the model on the test-set
+    trainer.test(loaded_test)
 
-    # Log test results to Wandb
-    wandb_logger.log_metrics({"test_loss": test_results[0]['test_loss'], "test_accuracy": test_results[0]['test_acc']})
-    # Add early stopping callback
-
-
-    # Update the trainer to include the early stopping callback
-    trainer = Trainer(
-        max_epochs=cfg.epochs,
-        logger=wandb_logger,
-        gpus=1 if torch.cuda.is_available() else 0,
-        callbacks=[early_stopping_callback]
-    )
-
+    ##### Intervetions ######
     '''
-    if cfg.dataset in ['xor', 'and', 'or', 'trigonometry', 'dot']:
-        loaded_train, loaded_val, loaded_test = Toy_DataLoader(cfg.dataset, cfg.batch_size, 800, 100, 100).get_data_loaders()
-    elif cfg.dataset == 'mnist_add':
-        loaded_train, loaded_val, loaded_test = MNIST_addition_loader(cfg.batch_size, val_size=0.1, seed=42)
-        E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=cfg.device)
-        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
-    elif cfg.dataset == 'cub':
-        loaded_train, loaded_val, loaded_test = CUB200_loader(cfg.batch_size, val_size=0.1, seed=42, dataset=f'{cfg.root}/data/cub', num_workers=3, pin_memory=True, augment=True, shuffle=True)
-        E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=cfg.device)
-        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
-    elif cfg.dataset == 'celeba':
-        concept_names = ['Mouth_Slightly_Open', 'Smiling', 'Wearing_Lipstick', 'High_Cheekbones', 'Heavy_Makeup', 'Wavy_Hair', 'Oval_Face', 'Pointy_Nose', 'Arched_Eyebrows', 'Big_Lips'] # 'Wearing_Lipstick', 'Heavy_Makeup'
-        class_attributes = ['Attractive']        
-        loaded_train, loaded_val, loaded_test = CelebA_loader(cfg.batch_size, val_size=0.1, seed = 42, dataset=f'{cfg.root}/data', class_attributes=class_attributes, concept_names=concept_names, num_workers=3, pin_memory=True, shuffle=True)
-        E_extr = EmbeddingExtractor(loaded_train, loaded_val, loaded_test, device=cfg.device)
-        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
-    elif cfg.dataset == 'cebab':
-        loaded_train = CEBABDataset(cfg.root, 'train', model_name='all-MiniLM-L6-v2')
-        loaded_val = CEBABDataset(cfg.root, 'validation', model_name='all-MiniLM-L6-v2')
-        loaded_test = CEBABDataset(cfg.root, 'test', model_name='all-MiniLM-L6-v2')
-        E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, cfg.batch_size, device=cfg.device)
-        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
-    elif cfg.dataset == 'imdb':
-        loaded_train = IMDBDataset(cfg.root, 'train', model_name='all-MiniLM-L6-v2')
-        loaded_val = IMDBDataset(cfg.root, 'validation', model_name='all-MiniLM-L6-v2')
-        loaded_test = IMDBDataset(cfg.root, 'test', model_name='all-MiniLM-L6-v2')
-        E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, cfg.batch_size, device=cfg.device)
-        loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
-
-    if cfg.dataset in ['xor', 'and', 'or']:
-        in_features = 2
-        n_concepts = 2
-        n_labels = 2
-    elif cfg.dataset == 'trigonometry':
-        in_features = 7
-        n_concepts = 3  
-        n_labels = 2
-    elif cfg.dataset == 'dot':
-        in_features = 4
-        n_concepts = 2
-        n_labels = 2  
-    elif cfg.dataset == 'mnist_add':
-        in_features = 512
-        n_concepts = 10
-        n_labels = 20
-    elif cfg.dataset == 'cub':
-        in_features = 512
-        n_concepts = 112
-        n_labels = 200
-    elif cfg.dataset == 'celeba':
-        in_features = 512
-        n_concepts = len(concept_names)
-        n_labels = 2
-    elif cfg.dataset == 'cebab':
-        in_features = 384
-        n_concepts = 4
-        n_labels = 2
-    elif cfg.dataset == 'imdb':
-        in_features = 384
-        n_concepts = 8
-        n_labels = 2
-
-    if cfg.model == 'e2e':
-        classifier = nn.Sequential(
-            nn.Linear(in_features, in_features),
-            nn.ReLU(),
-            nn.Linear(in_features, n_labels)
-        )
-        concept_encoder = None
-    elif cfg.model == 'cem':
-        model = ConceptEmbeddingModel(
-            n_concepts=n_concepts,
-            n_tasks=n_labels,
-            emb_size=cfg.emb_size,
-            training_intervention_prob=cfg.training_intervention_prob,
-            task_loss_weight=cfg.task_loss_weight,
-        )
-    elif cfg.model == 'aa_cem':
-        model = V_CEM(in_features, 
-                      n_concepts, 
-                      n_labels, 
-                      cfg.emb_size, 
-                      cfg.task_penalty, 
-                      cfg.kl_penalty, 
-                      cfg.p_int_train)
-
-    elif cfg.model == 'cbm_linear':
-        classifier = nn.Sequential(
-            nn.Linear(n_concepts, n_labels)
-        )
-        concept_encoder = nn.Sequential(
-            nn.Linear(in_features, in_features),
-            nn.ReLU(),
-            nn.Linear(in_features, n_concepts),
-            nn.Sigmoid()
-        ) 
-    elif cfg.model == 'cbm_mlp':
-        classifier = nn.Sequential(
-            nn.Linear(n_concepts, n_concepts),
-            nn.ReLU(),
-            nn.Linear(n_concepts, n_labels)
-        )
-        concept_encoder = nn.Sequential(
-            nn.Linear(in_features, in_features),
-            nn.ReLU(),
-            nn.Linear(in_features, n_concepts),
-            nn.Sigmoid()
-        ) 
-    '''
-
-
-
-
     task_f1, task_acc = f1_acc_metrics(y, y_preds)
     concept_f1, concept_acc = 0, 0
     if cfg.model != 'e2e':
@@ -258,23 +105,24 @@ def main(cfg: DictConfig) -> None:
                 intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
                 intervention_df = intervention_df.append(intervention_results, ignore_index=True)
         intervention_df.to_csv(csv_file_path, index=False)
+    '''
 
-        '''
-        if args.model=='aa_cem':
-            concept_encoder.embedding_interventions = False
-            params['concept_encoder'] = concept_encoder
-            csv_file_path = os.path.join(interventions_dir, 'metrics_concept_score_intervention.csv')
-            for eps in epss:
-                params['corruption'] = eps
-                for p_int in p_ints:
-                    params['intervention_prob'] = p_int
-                    _, _, _, y_preds, y, c_preds, c_true, _ = evaluate(**params)
-                    task_f1, task_acc = f1_acc_metrics(y, y_preds)
-                    # create a dictionary with the results
-                    intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
-                    intervention_df = intervention_df.append(intervention_results, ignore_index=True)
-            intervention_df.to_csv(csv_file_path, index=False)            
-        '''
+    '''
+    if args.model=='aa_cem':
+        concept_encoder.embedding_interventions = False
+        params['concept_encoder'] = concept_encoder
+        csv_file_path = os.path.join(interventions_dir, 'metrics_concept_score_intervention.csv')
+        for eps in epss:
+            params['corruption'] = eps
+            for p_int in p_ints:
+                params['intervention_prob'] = p_int
+                _, _, _, y_preds, y, c_preds, c_true, _ = evaluate(**params)
+                task_f1, task_acc = f1_acc_metrics(y, y_preds)
+                # create a dictionary with the results
+                intervention_results = {'noise': eps, 'p_int': p_int, 'f1': task_f1, 'accuracy': task_acc}
+                intervention_df = intervention_df.append(intervention_results, ignore_index=True)
+        intervention_df.to_csv(csv_file_path, index=False)            
+    '''
 
 if __name__ == "__main__":
     main()

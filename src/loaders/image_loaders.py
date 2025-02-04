@@ -118,17 +118,16 @@ class CustomDataset(Dataset):
         return image, digits, label
     
 
-def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_memory=True, shuffle=True):
+def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, root=None):
 
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.247, 0.243, 0.261)
-    
-    # fix the seed for both pytorch generator and numpy.random
-    generator = torch.Generator().manual_seed(seed) 
-    np.random.seed(seed)
+    pin_memory=True
+    generator = torch.Generator().manual_seed(seed)
 
-    train_dataset = datasets.MNIST(root='./datasets/', train=True, download=True)
-    test_dataset = datasets.MNIST(root='./datasets/', train=False)
+    root_path = os.path.join(root, 'data/MNIST')
+    train_dataset = datasets.MNIST(root=root_path, train=True, download=True)
+    test_dataset = datasets.MNIST(root=root_path, train=False, download=True)
 
     print('Generating pairs for training and test sets...')
     # Create composed training-set

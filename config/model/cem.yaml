@@ -1,0 +1,8 @@
+params:
+  _target_: "src.models.cem.ConceptEmbeddingModel"
+  input_dim: ${input_dim}
+  n_concepts: ${dataset.metadata.n_concepts}
+  n_labels: ${dataset.metadata.n_labels}
+
+metadata:
+  name: cem

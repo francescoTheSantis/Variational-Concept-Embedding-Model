@@ -1,5 +1,9 @@
-_target_: "src.models.cbm.ConceptBottleneckModel"
-input_dim: ${input_dim}
-n_concepts: ${n_concepts}
-n_labels: ${n_labels}
-task_interpretable: true
+params:
+  _target_: "src.models.cbm.ConceptBottleneckModel"
+  input_dim: ${input_dim}
+  n_concepts: ${dataset.metadata.n_concepts}
+  n_labels: ${dataset.metadata.n_labels}
+  task_interpretable: true
+
+metadata:
+  name: cbm_linear
