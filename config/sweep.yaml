@@ -20,9 +20,6 @@ task_penalty: 0.1
 c_emb_size: 16
 p_int_train: 0.25 
 
-# Only for our model
-kl_penalty: 1
-
 # Shared experimental parameters
 val_size: 0.1
 seed: 1
@@ -33,7 +30,7 @@ hydra:
   sweeper:
     params:
       dataset: mnist_addition
-      model: cbm_linear #blackbox, cbm_mlp, cem, v_cem
+      model: v_cem #blackbox, cbm_mlp, cem, v_cem
       seed: 1 # 
 
 

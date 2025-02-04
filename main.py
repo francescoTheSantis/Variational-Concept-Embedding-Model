@@ -1,7 +1,7 @@
-#from src.models.blackbox import BlackboxModel
-#from src.models.cbm import ConceptBottleneckModel
+from src.models.blackbox import BlackboxModel
+from src.models.cbm import ConceptBottleneckModel
+from src.models.v_cem import VariationalConceptEmbeddingModel
 
-from src.utilities import *
 from src.trainer import Trainer
 import hydra
 from omegaconf import DictConfig
