@@ -1,10 +1,10 @@
-name: test
+name: v_cem
 channels:
   - defaults
   - conda-forge
   - pytorch
 dependencies:
-  - python=3.13.1
+  - python=3.12.8
   - numpy
   - pandas
   - scipy
@@ -17,3 +17,5 @@ dependencies:
   - pip:
     - wandb
     - sentence-transformers
+    - SciencePlots
+    - hydra-core

@@ -3,7 +3,7 @@ defaults:
   - model: blackbox
 
 ## Working directory
-root: /home/bigdata-01QYD/s280037/Adversary-Aware-Concept-Embedding-Model/
+root: /home/fdesantis/Adversary-Aware-Concept-Embedding-Model/
 
 ## Traninging parameters
 max_epochs: 10 #500

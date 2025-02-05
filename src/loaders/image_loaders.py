@@ -125,7 +125,7 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, root
     pin_memory=True
     generator = torch.Generator().manual_seed(seed)
 
-    root_path = os.path.join(root, 'data/MNIST')
+    root_path = os.path.join(root, 'data')
     train_dataset = datasets.MNIST(root=root_path, train=True, download=True)
     test_dataset = datasets.MNIST(root=root_path, train=False, download=True)
 
