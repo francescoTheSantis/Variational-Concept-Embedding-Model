@@ -23,7 +23,7 @@ def process2(elem):
 class CEBABDataset(Dataset):
     def __init__(self, root, split, model_name=sentence_embedder):
 
-        path = os.path.join(root, f'data/cebab/cebab_{split}.csv')
+        path = os.path.join(root, f'cebab_{split}.csv')
         self.data = pd.read_csv(path)
         self.data['food'] = self.data.apply(lambda row: process(row['food']), axis=1)
         self.data['ambiance'] = self.data.apply(lambda row: process(row['ambiance']), axis=1)
@@ -88,7 +88,7 @@ class IMDBDataset(Dataset):
             max_length (int): Maximum sequence length for tokenization.
         """
 
-        self.folder = os.path.join(root, 'data/imdb')
+        self.folder = root
         self.data = pd.concat([pd.read_csv(f'{self.folder}/IMDB-{split}-generated.csv'), pd.read_csv(f'{self.folder}/IMDB-{split}-manual.csv')]).reset_index()
         self.data['acting'] = self.data.apply(lambda row: process(row['acting']), axis=1)
         self.data['storyline'] = self.data.apply(lambda row: process(row['storyline']), axis=1)
@@ -143,13 +143,12 @@ class EmbeddingExtractor_text:
 
         with torch.no_grad():
             for review, concepts, targets in loader:
-                if len(embs.shape) == 1:
-                    # decode the reviews
-                    review = [self.tokenizer.decode(review[i].tolist(), skip_special_tokens=True) for i in range(review.shape[0])]
-                    embs = self.model.encode(review, convert_to_tensor=True)
-                    embs = embs.unsqueeze(0)
-                    concepts = concepts.unsqueeze(0)
-                    targets = targets.unsqueeze(0)
+                # decode the reviews
+                review = [self.tokenizer.decode(review[i].tolist(), skip_special_tokens=True) for i in range(review.shape[0])]
+                embs = self.model.encode(review, convert_to_tensor=True)
+                embs = embs.unsqueeze(0)
+                concepts = concepts.unsqueeze(0)
+                targets = targets.unsqueeze(0)
                 embeddings.append(embs.cpu())
                 concepts_list.append(concepts.cpu())
                 labels.append(targets.cpu())
@@ -179,6 +178,7 @@ def text_loader(dataset, root, batch_size):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     if dataset == 'cebab':
         root = os.path.join(root, 'data/cebab')
+        print(root)
         loaded_train = CEBABDataset(root, 'train', model_name='all-MiniLM-L6-v2')
         loaded_val = CEBABDataset(root, 'validation', model_name='all-MiniLM-L6-v2')
         loaded_test = CEBABDataset(root, 'test', model_name='all-MiniLM-L6-v2')

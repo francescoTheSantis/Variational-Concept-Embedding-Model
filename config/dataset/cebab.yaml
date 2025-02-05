@@ -1,15 +1,12 @@
 loader:
   _target_: src.loaders.text_loaders.text_loader
-  dataset: celeba
-  batch_size: ${batch_size}  
+  dataset: cebab
   root: ${root}
+  batch_size: ${batch_size}  
 
 metadata:
   n_concepts: 4
   n_labels: 2
   input_dim: 768 # output dimension of the vit32 cls
   lr: 0.0001
-  name: celeba
-
-
-
+  name: cebab
