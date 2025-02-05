@@ -1,7 +1,8 @@
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
 import torch.nn.functional as F
+from src.metrics import Task_Accuracy, Concept_Accuracy
 from src.utilities import get_intervened_concepts_predictions
 
 class ConceptEmbeddingModel(pl.LightningModule):
@@ -19,9 +20,13 @@ class ConceptEmbeddingModel(pl.LightningModule):
         self.task_penalty = task_penalty
         self.p_int_train = p_int_train
         self.n_classes = n_classes
+        self.n_concepts = n_concepts
+        self.has_concepts = True
+        self.task_metric = Task_Accuracy()
+        self.concept_metric = Concept_Accuracy()
 
         self.concept_context_generators = torch.nn.ModuleList()
-        for i in range(n_concepts):
+        for i in range(self.n_concepts):
             self.concept_context_generators.append(torch.nn.Sequential(
                 torch.nn.Linear(in_features, 2 * emb_size),
                 torch.nn.LeakyReLU(),
@@ -42,9 +47,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
         if noise!=None:
             eps = torch.randn_like(x)
             x = eps * noise + x * (1-noise)
-
         p_int = self.p_int_train if self.training else p_int
-
         c_emb_list, c_pred_list = [], []
         for i, context_gen in enumerate(self.concept_context_generators):
             context = context_gen(x)
@@ -56,11 +59,9 @@ class ConceptEmbeddingModel(pl.LightningModule):
             context_neg = context[:, self.emb_size:]
             c_emb = context_pos * c_pred + context_neg * (1 - c_pred)
             c_emb_list.append(c_emb.unsqueeze(1))
-
-            c_embs = torch.cat(c_emb_list, axis=1)
-            c_preds = torch.cat(c_pred_list, axis=1)
-
-            y_hat = self.classifier(c_embs.view(c_embs.shape[0], -1))
+        c_embs = torch.cat(c_emb_list, axis=1)
+        c_preds = torch.cat(c_pred_list, axis=1)
+        y_hat = self.classifier(c_embs.flatten(start_dim=1))
         return c_preds, y_hat, c_embs
 
     def step(self, batch, batch_idx, noise=None, p_int=None):

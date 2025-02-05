@@ -1,8 +1,11 @@
 params:
   _target_: "src.models.cem.ConceptEmbeddingModel"
-  input_dim: ${input_dim}
+  in_features: ${dataset.metadata.input_dim}
   n_concepts: ${dataset.metadata.n_concepts}
-  n_labels: ${dataset.metadata.n_labels}
+  emb_size: ${c_emb_size}
+  n_classes: ${dataset.metadata.n_labels}
+  task_penalty: ${task_penalty}
+  p_int_train: ${p_int_train}
 
 metadata:
   name: cem

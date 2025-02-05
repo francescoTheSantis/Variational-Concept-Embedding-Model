@@ -1,6 +1,8 @@
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
+import torch.nn.functional as F
+from src.metrics import Task_Accuracy, Concept_Accuracy
 from src.utilities import get_intervened_concepts_predictions
 
 class VariationalConceptEmbeddingModel(pl.LightningModule):
@@ -22,6 +24,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.n_classes = n_classes
         self.p_int_train = p_int_train
         self.has_concepts = True
+        self.task_metric = Task_Accuracy()
+        self.concept_metric = Concept_Accuracy()
 
         # Initialize learnable concept prototypes using normal distribution
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -84,7 +88,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
             if self.p_int_train!=None and self.training:
-                c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, False)
+                c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), self.p_int_train, False)
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
             logvar = self.logvar_layer[i](emb)
@@ -114,7 +118,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         x, concept_labels, y = batch
         c_pred, y_pred, c_emb, mu, logvar = self.forward(x, concept_labels, noise, p_int)
         concept_loss, task_loss, D_kl = self.compute_losses(y_pred, c_pred, mu, logvar, concept_labels, y)
-        return task_loss, concept_loss, D_kl, c_pred, y_pred, c_emb, mu, logvar
+        return task_loss, concept_loss, D_kl, c_pred, y_pred, c_emb, mu, logvar, concept_labels, y
 
     def compute_losses(self, y_pred, c_pred, mu, logvar, c, y):
         concept_form = nn.BCELoss()
@@ -134,34 +138,45 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         return concept_loss, task_loss, D_kl
 
     def training_step(self, batch, batch_idx):
-        task_loss, concept_loss, D_kl, _, _, _, _, _ = self.step(batch, batch_idx)
+        task_loss, concept_loss, D_kl, _, _, _, _, _, _, _ = self.step(batch, batch_idx)
 
         self.log('train_concept_loss', concept_loss)
         self.log('train_task_loss', task_loss)
         self.log('train_kl_loss', D_kl)
         
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
+        self.log('train_loss', loss)
+
         return loss
     
     def validation_step(self, batch, batch_idx):
-        task_loss, concept_loss, D_kl, _, _, _, _, _ = self.step(batch, batch_idx)
-        print('Am i sampling?', self.training)
+        task_loss, concept_loss, D_kl, _, _, _, _, _, _, _ = self.step(batch, batch_idx)
 
         self.log('val_concept_loss', concept_loss)
         self.log('val_task_loss', task_loss)
         self.log('val_kl_loss', D_kl)
         
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
+        self.log('val_loss', loss)
+
         return loss
 
     def test_step(self, batch, batch_idx):
-        task_loss, concept_loss, D_kl, _, _, _, _, _ = self.step(batch, batch_idx)
+        task_loss, concept_loss, D_kl, c_pred, y_pred, _, _, _, y, c = self.step(batch, batch_idx)
 
         self.log('test_concept_loss', concept_loss)
         self.log('test_task_loss', task_loss)
         self.log('test_kl_loss', D_kl)
         
+        task_acc = self.task_metric(y_pred, y)
+        self.log('test_task_acc', task_acc)
+
+        concept_acc = self.concept_metric(c_pred, c)
+        self.log('test_concept_acc', concept_acc)
+        
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
+        self.log('test_loss', loss)
+
         return loss
 
     def configure_optimizers(self):

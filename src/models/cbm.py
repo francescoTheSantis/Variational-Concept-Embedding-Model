@@ -1,6 +1,5 @@
 import pytorch_lightning as pl
 import torch
-
 import torch.nn as nn
 import torch.nn.functional as F
 from src.metrics import Task_Accuracy, Concept_Accuracy
@@ -14,7 +13,7 @@ class ConceptBottleneckModel(pl.LightningModule):
                  task_penalty,
                  p_int_train=None,
                  task_interpretable=True):
-        super(ConceptBottleneckModel, self).__init__()
+        super().__init__()
 
         # Encoder: Maps input to concepts
         self.encoder = nn.Sequential(

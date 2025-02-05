@@ -6,7 +6,7 @@ from src.metrics import Task_Accuracy
 
 class BlackboxModel(pl.LightningModule):
     def __init__(self, input_dim, n_labels):
-        super(BlackboxModel, self).__init__()
+        super().__init__()
         # the hidden dimension is half of the input dimension
         hidden_dim = input_dim // 2
         self.layer_1 = nn.Linear(input_dim, hidden_dim)
@@ -39,11 +39,9 @@ class BlackboxModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         loss, y, y_hat = self.step(batch, batch_idx)
-
         task_acc = self.task_metric(y_hat, y)
         self.log('test_task_acc', task_acc)
         self.log('test_concept_acc', torch.tensor(0.0))
-
         return loss
 
     def configure_optimizers(self):

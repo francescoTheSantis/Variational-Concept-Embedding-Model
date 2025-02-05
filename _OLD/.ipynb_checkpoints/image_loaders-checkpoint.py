@@ -1,6 +1,7 @@
 import torch
 from torchvision.datasets import CelebA
 from typing import List
+from torchvision.models import resnet34
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader, random_split, TensorDataset
 from torch import nn
@@ -11,79 +12,7 @@ from PIL import Image
 import os, re
 import requests
 import tarfile
-from transformers import ViTModel, ViTFeatureExtractor
-from tqdm import tqdm
 
-
-class EmbeddingExtractor:
-    def __init__(self, train_loader, val_loader, test_loader, device='cuda', celeba=False):
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.test_loader = test_loader
-        self.device = device
-        self.celeba = celeba
-        
-        # Load ViT model pre-trained on ImageNet
-        self.feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch32-224-in21k')
-        self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
-        self.model = self.model.to(self.device)
-        self.model.eval()
-
-    def _extract_embeddings(self, loader):
-        """Helper function to extract embeddings for a given DataLoader."""
-        embeddings = []
-        concepts_list = []
-        labels = []
-
-        with torch.no_grad():
-            if not self.celeba:
-                for images, concepts, targets in tqdm(loader):
-                    images = images.to(self.device)
-                    # Extract embeddings
-                    outputs = self.model(images)
-                    # Get the [CLS] token representation
-                    output = outputs.last_hidden_state[:, 0, :]
-                    embeddings.append(output.cpu())
-                    concepts_list.append(concepts.cpu())
-                    labels.append(targets.cpu())
-            else:
-                for images, (concepts, targets) in tqdm(loader):
-                    images = images.to(self.device)
-                    outputs = self.model(images)
-                    output = outputs.last_hidden_state[:, 0, :]
-                    embeddings.append(output.cpu())
-                    concepts_list.append(concepts.cpu())
-                    labels.append(targets.cpu())
-                
-        # Concatenate all embeddings and labels
-        embeddings = torch.cat(embeddings, dim=0)
-        concepts = torch.cat(concepts_list, dim=0)
-        labels = torch.cat(labels, dim=0)
-
-        if len(labels.shape)>1:
-            labels = torch.argmax(labels, dim=1)
-
-        return embeddings, concepts.float(), labels
-
-    def _create_loader(self, embeddings, concepts, labels, batch_size):
-        """Helper function to create a DataLoader from embeddings and labels."""
-        dataset = TensorDataset(embeddings, concepts, labels)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    def produce_loaders(self):
-        """Produces new DataLoaders with embeddings instead of raw images."""
-        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
-        val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
-        test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
-
-        batch_size = self.train_loader.batch_size
-
-        train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, batch_size)
-        val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, batch_size)
-        test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, batch_size)
-
-        return train_loader, val_loader, test_loader
-    
 
 class CustomDataset(Dataset):
     def __init__(self, mean, std, images, labels, digits):
@@ -122,98 +51,53 @@ class CustomDataset(Dataset):
         return image, digits, label
     
 
-def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, root=None, incomplete=False):
+def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_memory=True, shuffle=True):
 
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.247, 0.243, 0.261)
-    pin_memory=True
-    generator = torch.Generator().manual_seed(seed)
-    samples_per_permutation = 500
+    
+    # fix the seed for both pytorch generator and numpy.random
+    generator = torch.Generator().manual_seed(seed) 
+    np.random.seed(seed)
 
-    root_path = os.path.join(root, 'data')
-    train_dataset = datasets.MNIST(root=root_path, train=True, download=True)
-    test_dataset = datasets.MNIST(root=root_path, train=False, download=True)
+    train_dataset = datasets.MNIST(root='./datasets/', train=True, download=True)
+    test_dataset = datasets.MNIST(root='./datasets/', train=False)
 
-    print('Generating pairs for training and test sets...')
     # Create composed training-set
-    if not incomplete:
-        # Create composed training-set
-        unique_pairs = [str(x)+str(y) for x in range(10) for y in range(10)]
-        X_train = []
-        y_train = []
-        c_train = []
-        y_train_lab = np.array([x[1] for x in train_dataset])
-        y_test_lab = np.array([x[1] for x in test_dataset])
-        y_digits = np.array([x[1] for x in test_dataset])
-        for train_set_pair in unique_pairs:
-            for _ in range(samples_per_permutation):
-                rand_i = np.random.choice(np.where(y_train_lab == int(train_set_pair[0]))[0])
-                rand_j = np.random.choice(np.where(y_train_lab == int(train_set_pair[1]))[0])
-                temp_image = np.zeros((28,56), dtype="uint8")
-                temp_image[:,:28] = train_dataset[rand_i][0]
-                temp_image[:,28:] = train_dataset[rand_j][0]
-                X_train.append(temp_image)
-                y_train.append(y_train_lab[rand_i] + y_train_lab[rand_j])
-                c_train.append([y_train_lab[rand_i], y_train_lab[rand_j]])  
-        
-        # Create composed test-set
-        X_test = []
-        y_test = []
-        c_test = []
-        samples_per_permutation = 100
-        for test_set_pair in unique_pairs:
-            for _ in range(samples_per_permutation):
-                rand_i = np.random.choice(np.where(y_test_lab == int(test_set_pair[0]))[0])
-                rand_j = np.random.choice(np.where(y_test_lab == int(test_set_pair[1]))[0])
-                temp_image = np.zeros((28,56), dtype="uint8")
-                temp_image[:,:28] = test_dataset[rand_i][0]
-                temp_image[:,28:] = test_dataset[rand_j][0]
-                X_test.append(temp_image)
-                y_test.append(y_test_lab[rand_i] + y_test_lab[rand_j])
-                c_test.append([y_test_lab[rand_i], y_test_lab[rand_j]])
-    else:
-        # Create the composed dataset (two images concatenated over the x-axis)
-        unique_pairs = [str(x)+str(y) for x in range(10) for y in range(10)]
-        test_set_pairs = []
-        while(len(test_set_pairs) < 10):
-            pair_to_add = np.random.choice(unique_pairs)
-            if pair_to_add not in test_set_pairs:
-                test_set_pairs.append(pair_to_add)
-        train_set_pairs = list(set(unique_pairs) - set(test_set_pairs))
-        assert(len(test_set_pairs) == 10)
-        assert(len(train_set_pairs) == 90)
-        for test_set in test_set_pairs:
-            assert(test_set not in train_set_pairs)
-            print("%s not in training set." % test_set)
-        X_train = []
-        y_train = []
-        c_train = []
-        y_train_lab = np.array([x[1] for x in train_dataset])
-        y_test_lab = np.array([x[1] for x in test_dataset])
-        y_digits = np.array([x[1] for x in test_dataset])
-        for train_set_pair in train_set_pairs:
-            for _ in range(samples_per_permutation):
-                rand_i = np.random.choice(np.where(y_train_lab == int(train_set_pair[0]))[0])
-                rand_j = np.random.choice(np.where(y_train_lab == int(train_set_pair[1]))[0])
-                temp_image = np.zeros((28,56), dtype="uint8")
-                temp_image[:,:28] = train_dataset[rand_i][0]
-                temp_image[:,28:] = train_dataset[rand_j][0]
-                X_train.append(temp_image)
-                y_train.append(y_train_lab[rand_i] + y_train_lab[rand_j])
-                c_train.append([y_train_lab[rand_i], y_train_lab[rand_j]])
-        X_test = []
-        y_test = []
-        c_test = []
-        for test_set_pair in test_set_pairs:
-            for _ in range(samples_per_permutation):
-                rand_i = np.random.choice(np.where(y_test_lab == int(test_set_pair[0]))[0])
-                rand_j = np.random.choice(np.where(y_test_lab == int(test_set_pair[1]))[0])
-                temp_image = np.zeros((28,56), dtype="uint8")
-                temp_image[:,:28] = test_dataset[rand_i][0]
-                temp_image[:,28:] = test_dataset[rand_j][0]
-                X_test.append(temp_image)
-                y_test.append(y_test_lab[rand_i] + y_test_lab[rand_j])
-                c_test.append([y_test_lab[rand_i], y_test_lab[rand_j]])
+    unique_pairs = [str(x)+str(y) for x in range(10) for y in range(10)]
+    X_train = []
+    y_train = []
+    c_train = []
+    y_train_lab = np.array([x[1] for x in train_dataset])
+    y_test_lab = np.array([x[1] for x in test_dataset])
+    y_digits = np.array([x[1] for x in test_dataset])
+    samples_per_permutation = 500
+    for train_set_pair in unique_pairs:
+        for _ in range(samples_per_permutation):
+            rand_i = np.random.choice(np.where(y_train_lab == int(train_set_pair[0]))[0])
+            rand_j = np.random.choice(np.where(y_train_lab == int(train_set_pair[1]))[0])
+            temp_image = np.zeros((28,56), dtype="uint8")
+            temp_image[:,:28] = train_dataset[rand_i][0]
+            temp_image[:,28:] = train_dataset[rand_j][0]
+            X_train.append(temp_image)
+            y_train.append(y_train_lab[rand_i] + y_train_lab[rand_j])
+            c_train.append([y_train_lab[rand_i], y_train_lab[rand_j]])  
+    
+    # Create composed test-set
+    X_test = []
+    y_test = []
+    c_test = []
+    samples_per_permutation = 100
+    for test_set_pair in unique_pairs:
+        for _ in range(samples_per_permutation):
+            rand_i = np.random.choice(np.where(y_test_lab == int(test_set_pair[0]))[0])
+            rand_j = np.random.choice(np.where(y_test_lab == int(test_set_pair[1]))[0])
+            temp_image = np.zeros((28,56), dtype="uint8")
+            temp_image[:,:28] = test_dataset[rand_i][0]
+            temp_image[:,28:] = test_dataset[rand_j][0]
+            X_test.append(temp_image)
+            y_test.append(y_test_lab[rand_i] + y_test_lab[rand_j])
+            c_test.append([y_test_lab[rand_i], y_test_lab[rand_j]])
     
     train_dataset = CustomDataset(mean, std, X_train, y_train, c_train)        
     test_dataset = CustomDataset(mean, std, X_test, y_test, c_test)        
@@ -223,12 +107,6 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, root
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('Extracting embeddings...')
-    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
-    train_loader, val_loader, test_loader = E_extr.produce_loaders()
-
     return train_loader, val_loader, test_loader
 
 
@@ -246,9 +124,28 @@ class CUBDataset(Dataset):
         self.root_dir = root_dir
         self.train = train
 
+        self.mean = (0.4914, 0.4822, 0.4465)
+        self.std = (0.247, 0.243, 0.261)
+
+        '''
+        if self.train:
+            self.transform = transforms.Compose([
+                        transforms.RandomHorizontalFlip(),
+                        transforms.RandomRotation(degrees=10), 
+                        transforms.Resize((280, 280)),  # image_size + 1/4 * image_size
+                        transforms.RandomResizedCrop((224, 224)),
+                        transforms.ToTensor()
+                    ])
+        else:
+            self.transform = transforms.Compose([
+                    transforms.Resize((224, 224)), 
+                    transforms.ToTensor()
+                ]) 
+        '''
         self.transform = transforms.Compose([
                 transforms.Resize((224, 224)), 
-                transforms.ToTensor()
+                transforms.ToTensor(),
+                transforms.Normalize(self.mean, self.std)
             ]) 
         
         if os.path.isdir(self.root_dir + "/CUB_200_2011") is False:
@@ -289,6 +186,7 @@ class CUBDataset(Dataset):
                 if attribute_id in SELECTED_CONCEPTS:
                     self.image_attributes[image_id][cnt] = float(is_present)
                     cnt += 1
+
 
         # Extract image paths and labels
         for img_line, label_line, split_line in zip(image_lines, label_lines, split_lines):
@@ -345,12 +243,11 @@ class CUBDataset(Dataset):
         return image, concepts, label
     
 
-def CUB200_loader(batch_size, val_size=0.1, seed = 42, root=None, num_workers=3, pin_memory=True, augment=True, shuffle=True):
+def CUB200_loader(batch_size, val_size=0.1, seed = 42, dataset='./datasets/', num_workers=3, pin_memory=True, augment=True, shuffle=True):
     generator = torch.Generator().manual_seed(seed) 
 
-    path = os.path.join(root, 'data')
-    train_dataset = CUBDataset(root_dir=path, train=True)
-    test_dataset = CUBDataset(root_dir=path, train=False)
+    train_dataset = CUBDataset(root_dir='./dataset', train=True)
+    test_dataset = CUBDataset(root_dir='./dataset', train=False)
 
     val_size = int(len(train_dataset) * val_size)
     train_size = len(train_dataset) - val_size
@@ -364,11 +261,6 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, root=None, num_workers=3,
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('Extracting embeddings...')
-    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
-    train_loader, val_loader, test_loader = E_extr.produce_loaders()
-
     return train_loader, val_loader, test_loader
 
 # CelebA loader
@@ -504,26 +396,23 @@ class CelebADataset(CelebA):
         return image, concept_attributes, y
 
 
-def CelebA_loader(batch_size, val_size=0.1, seed = 42, root=None, class_attributes=['Male'], concept_names=['Straight_Hair'], num_workers=3, pin_memory=True, shuffle=True):
+def CelebA_loader(batch_size, val_size=0.1, seed = 42, dataset='./dataset', class_attributes=['Male'], concept_names=['Straight_Hair'], num_workers=3, pin_memory=True, shuffle=True):
     generator = torch.Generator().manual_seed(seed) 
 
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor()
         ])
-    
     test_transform = transforms.Compose([
         transforms.Resize((224, 224)), 
         transforms.ToTensor()
         ])
 
-    path = os.path.join(root, 'data')
-
     #Download in the following lines is set to false due to a known torchvision issue which has 
     #never been solved. YOU HAVE TO DOWNLOAD Celeba MANUALLY and unzip it in the folder you use as root
     #https://stackoverflow.com/questions/70896841/error-downloading-celeba-dataset-using-torchvision
-    train_dataset = CelebADataset(root=path, split="train", class_attributes=class_attributes, concept_names=concept_names, transform=train_transform, download=False)
-    test_dataset = CelebADataset(root=path, split="test", class_attributes=class_attributes, concept_names=concept_names, transform=test_transform, download=False)
+    train_dataset = CelebADataset(root=dataset, split="train", class_attributes=class_attributes, concept_names=concept_names, transform=train_transform, download=False)
+    test_dataset = CelebADataset(root=dataset, split="test", class_attributes=class_attributes, concept_names=concept_names, transform=test_transform, download=False)
 
     val_size = int(len(train_dataset) * val_size)
     train_size = len(train_dataset) - val_size
@@ -534,10 +423,71 @@ def CelebA_loader(batch_size, val_size=0.1, seed = 42, root=None, class_attribut
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('Extracting embeddings...')
-    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
-    train_loader, val_loader, test_loader = E_extr.produce_loaders()
-
     return train_loader, val_loader, test_loader
+    
 
+class EmbeddingExtractor:
+    def __init__(self, train_loader, val_loader, test_loader, device='cuda', celeba=False):
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.device = device
+        self.celeba = celeba
+        
+        # Load ResNet34 model pre-trained on ImageNet
+        self.model = resnet34(pretrained=True)
+        # Remove the fully connected layer to get embeddings
+        self.model = nn.Sequential(*list(self.model.children())[:-1])
+        self.model = self.model.to(self.device)
+        self.model.eval()
+
+    def _extract_embeddings(self, loader):
+        """Helper function to extract embeddings for a given DataLoader."""
+        embeddings = []
+        concepts_list = []
+        labels = []
+
+        with torch.no_grad():
+            if not self.celeba:
+                for images, concepts, targets in loader:
+                    images = images.to(self.device)
+                    # Extract embeddings
+                    output = self.model(images)
+                    # Flatten the output from (batch_size, 512, 1, 1) to (batch_size, 512)
+                    output = output.view(output.size(0), -1)
+                    embeddings.append(output.cpu())
+                    concepts_list.append(concepts.cpu())
+                    labels.append(targets.cpu())
+            else:
+                for images, (concepts, targets) in loader:
+                    images = images.to(self.device)
+                    output = self.model(images)
+                    output = output.view(output.size(0), -1)
+                    embeddings.append(output.cpu())
+                    concepts_list.append(concepts.cpu())
+                    labels.append(targets.cpu())
+                
+        # Concatenate all embeddings and labels
+        embeddings = torch.cat(embeddings, dim=0)
+        concepts = torch.cat(concepts_list, dim=0)
+        labels = torch.cat(labels, dim=0)
+        return embeddings, concepts.float(), labels
+
+    def _create_loader(self, embeddings, concepts, labels, batch_size):
+        """Helper function to create a DataLoader from embeddings and labels."""
+        dataset = TensorDataset(embeddings, concepts, labels)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    def produce_loaders(self):
+        """Produces new DataLoaders with embeddings instead of raw images."""
+        train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
+        val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
+        test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
+
+        batch_size = self.train_loader.batch_size
+
+        train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, batch_size)
+        val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, batch_size)
+        test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, batch_size)
+
+        return train_loader, val_loader, test_loader

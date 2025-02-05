@@ -1,6 +1,6 @@
 params:
   _target_: "src.models.blackbox.BlackboxModel"
-  input_dim: ${input_dim}
+  input_dim: ${dataset.metadata.input_dim}
   n_labels: ${dataset.metadata.n_labels}
 
 metadata:

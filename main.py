@@ -1,7 +1,3 @@
-from src.models.blackbox import BlackboxModel
-from src.models.cbm import ConceptBottleneckModel
-from src.models.v_cem import VariationalConceptEmbeddingModel
-
 from src.trainer import Trainer
 import hydra
 from omegaconf import DictConfig
@@ -13,6 +9,7 @@ from pytorch_lightning.loggers import WandbLogger, CSVLogger
 @hydra.main(config_path="config", config_name="sweep")
 def main(cfg: DictConfig) -> None:
 
+    # Initialize wandb and the csv logger
     wandb.init(project=cfg.wandb.project,
                entity=cfg.wandb.entity, 
                name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
@@ -26,6 +23,7 @@ def main(cfg: DictConfig) -> None:
         print(f"{key}: {value}")
     print('\n')
 
+    # Set the seed
     set_seed(cfg.seed)
 
     ###### Load the data ######
@@ -47,13 +45,15 @@ def main(cfg: DictConfig) -> None:
     trainer.test(loaded_test)
 
     ###### Intervetions ######
-    if cfg.model.metadata.name != 'blackbox':
+    if model.has_concepts:
         # Perform interventions experiment
         intervention_df = trainer.interventions(loaded_test)
 
         # Save the intervention results
         log_dir = csv_logger.log_dir
         intervention_df.to_csv(f"{log_dir}/interventions.csv", index=False)
+    
+    wandb_logger.experiment.finish()
 
 if __name__ == "__main__":
     main()

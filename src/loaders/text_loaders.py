@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import os
-
+from transformers import BertTokenizer
 
 sentence_embedder = 'all-distilroberta-v1'
 
@@ -31,6 +31,7 @@ class CEBABDataset(Dataset):
         self.data['noise'] = self.data.apply(lambda row: process(row['noise']), axis=1)
         self.data['bin_rating'] = self.data.apply(lambda row: process2(row['bin_rating']), axis=1)
         self.model = SentenceTransformer(model_name)
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def __len__(self):
         return len(self.data)
@@ -42,8 +43,7 @@ class CEBABDataset(Dataset):
             raise IndexError(f"Index {idx} is out of bounds for DataFrame with length {len(self.data)}")
 
         # Extract review, concept annotations, and label
-        review = self.data.loc[idx, 'review']  # Column name for the review text
-        text_embedding = self.model.encode(review, convert_to_tensor=True)
+        review = self.tokenizer(self.data.loc[idx, 'review'])  # Column name for the review text
         concepts = self.data.loc[idx, ['food', 'service', 'ambiance', 'noise']].values
 
         label = self.data.loc[idx, 'bin_rating']  # Column name for the label
@@ -56,7 +56,7 @@ class CEBABDataset(Dataset):
         concepts_tensor = torch.tensor(concepts, dtype=torch.float)
         label_tensor = torch.tensor(label, dtype=torch.float)
 
-        return text_embedding, concepts_tensor, label_tensor
+        return review, concepts_tensor, label_tensor
 
 
 
@@ -100,6 +100,7 @@ class IMDBDataset(Dataset):
         self.data['editing'] = self.data.apply(lambda row: process(row['editing']), axis=1)
         self.data['sentiment'] = self.data.apply(lambda row: process2(row['sentiment']), axis=1)
         self.model = SentenceTransformer(model_name)
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def __len__(self):
         return len(self.data)
@@ -109,8 +110,7 @@ class IMDBDataset(Dataset):
             raise IndexError(f"Index {idx} is out of bounds for DataFrame with length {len(self.data)}")
 
         # Extract review, concept annotations, and label
-        review = self.data.loc[idx, 'review']
-        text_embedding = self.model.encode(review, convert_to_tensor=True)
+        review = self.tokenizer(self.data.loc[idx, 'review'])  # Column name for the review text
         concepts = self.data.loc[idx, ['acting', 'storyline', 'emotional arousal', 'cinematography', 'soundtrack', 'directing', 'background setting', 'editing']].values
 
         label = self.data.loc[idx, 'sentiment']  # Column name for the label
@@ -123,7 +123,7 @@ class IMDBDataset(Dataset):
         concepts_tensor = torch.tensor(concepts, dtype=torch.float)
         label_tensor = torch.tensor(label, dtype=torch.float)
 
-        return text_embedding, concepts_tensor, label_tensor
+        return review, concepts_tensor, label_tensor
 
 
 class EmbeddingExtractor_text:
@@ -133,6 +133,7 @@ class EmbeddingExtractor_text:
         self.test_loader = test_loader
         self.device = device
         self.batch_size = batch_size
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def _extract_embeddings(self, loader):
         """Helper function to extract embeddings for a given DataLoader."""
@@ -141,8 +142,11 @@ class EmbeddingExtractor_text:
         labels = []
 
         with torch.no_grad():
-            for embs, concepts, targets in loader:
+            for review, concepts, targets in loader:
                 if len(embs.shape) == 1:
+                    # decode the reviews
+                    review = [self.tokenizer.decode(review[i].tolist(), skip_special_tokens=True) for i in range(review.shape[0])]
+                    embs = self.model.encode(review, convert_to_tensor=True)
                     embs = embs.unsqueeze(0)
                     concepts = concepts.unsqueeze(0)
                     targets = targets.unsqueeze(0)
@@ -166,11 +170,25 @@ class EmbeddingExtractor_text:
         train_embeddings, train_concepts, train_labels = self._extract_embeddings(self.train_loader)
         val_embeddings, val_concepts, val_labels = self._extract_embeddings(self.val_loader)
         test_embeddings, test_concepts, test_labels = self._extract_embeddings(self.test_loader)
-
         train_loader = self._create_loader(train_embeddings, train_concepts, train_labels, self.batch_size)
         val_loader = self._create_loader(val_embeddings, val_concepts, val_labels, self.batch_size)
         test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, self.batch_size)
-
         return train_loader, val_loader, test_loader
 
+def text_loader(dataset, root, batch_size):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if dataset == 'cebab':
+        root = os.path.join(root, 'data/cebab')
+        loaded_train = CEBABDataset(root, 'train', model_name='all-MiniLM-L6-v2')
+        loaded_val = CEBABDataset(root, 'validation', model_name='all-MiniLM-L6-v2')
+        loaded_test = CEBABDataset(root, 'test', model_name='all-MiniLM-L6-v2')
+    elif dataset == 'imdb':
+        root = os.path.join(root, 'data/imdb')
+        loaded_train = IMDBDataset(root, 'train', model_name='all-MiniLM-L6-v2')
+        loaded_val = IMDBDataset(root, 'validation', model_name='all-MiniLM-L6-v2')
+        loaded_test = IMDBDataset(root, 'test', model_name='all-MiniLM-L6-v2')
 
+    E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, batch_size, device=device)
+    loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
+
+    return loaded_train, loaded_val, loaded_test

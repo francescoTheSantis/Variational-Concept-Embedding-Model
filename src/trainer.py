@@ -41,11 +41,11 @@ class Trainer:
             devices=self.cfg.gpus,  
             accelerator="gpu" 
         )
-        
+
         # Optimizer
-        self.optimizer = Adam(self.model.parameters(), lr=self.cfg.lr)
+        self.optimizer = Adam(self.model.parameters(), lr=self.cfg.dataset.metadata.lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=self.cfg.lr_step, gamma=self.cfg.gamma, verbose=True)
-    
+
         # Set the optimizer in the repsective model
         self.model.optimizer = self.optimizer
         self.model.scheduler = self.scheduler

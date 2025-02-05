@@ -1,15 +1,14 @@
 loader:
-  _target_: src.loaders.image_loaders.MNIST_addition_loader
+  _target_: src.loaders.image_loaders.CUB200_loader
   batch_size: ${batch_size}  
   seed: ${seed}
   val_size: ${val_size}
   num_workers: 3
   root: ${root}
-  incomplete: false
 
 metadata:
-  n_concepts: 10
-  n_labels: 20
+  n_concepts: 112
+  n_labels: 200
   input_dim: 768 # output dimension of the vit32 cls
-  lr: 0.0005
-  name: mnist_addition
+  lr: 0.0001
+  name: cub
