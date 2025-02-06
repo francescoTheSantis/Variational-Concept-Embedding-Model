@@ -3,10 +3,10 @@ defaults:
   - model: blackbox
 
 ## Working directory
-root: /home/bigdata-01QYD/s280037/Adversary-Aware-Concept-Embedding-Model/
+root: /home/fdesantis/Adversary-Aware-Concept-Embedding-Model
 
 ## Traninging parameters
-max_epochs: 5 #500
+max_epochs: 500
 patience: 20
 batch_size: 128
 gamma: 0.5
@@ -16,8 +16,7 @@ lr_step: 100
 task_penalty: 0.1
 
 # Only for concept embedding models
-c_emb_size: 16
-p_int_train: 0.25 
+c_emb_size: 32
 
 # Shared experimental parameters
 val_size: 0.1
@@ -28,9 +27,9 @@ hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      dataset: cebab #mnist_addition, mnist_addition_incomplete, celeba, cub, cebab, imdb, xor
-      model: cbm_linear #blackbox, cbm_linear, cbm_mlp, cem, v_cem
-      #seed: 1, 2, 3, 4, 5 
+      seed: 1 #1, 2, 3, 4, 5
+      dataset: mnist_addition, imdb, celeba, cub, mnist_addition_incomplete, cebab
+      model: blackbox, cbm_linear, cbm_mlp, cem, v_cem
 
 wandb:
   project: "v_cem"        # Set your project name here

@@ -13,9 +13,11 @@ def main(cfg: DictConfig) -> None:
     wandb.init(project=cfg.wandb.project,
                entity=cfg.wandb.entity, 
                name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
+    
     wandb_logger = WandbLogger(project=cfg.wandb.project, 
                                entity=cfg.wandb.entity, 
                                name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
+    
     csv_logger = CSVLogger("logs/", name="experiment_metrics")
 
     print("Configuration Parameters:")
@@ -53,7 +55,8 @@ def main(cfg: DictConfig) -> None:
         log_dir = csv_logger.log_dir
         intervention_df.to_csv(f"{log_dir}/interventions.csv", index=False)
     
-    wandb_logger.experiment.finish()
+    #wandb_logger.experiment.finish()
+    wandb.finish()
 
 if __name__ == "__main__":
     main()

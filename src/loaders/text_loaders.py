@@ -5,8 +5,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import os
 from transformers import BertTokenizer
-
-sentence_embedder = 'all-distilroberta-v1'
+from tqdm import tqdm
 
 def process(elem):
     if elem in ['Negative','unknown']:
@@ -21,7 +20,7 @@ def process2(elem):
         return 0 
 
 class CEBABDataset(Dataset):
-    def __init__(self, root, split, model_name=sentence_embedder):
+    def __init__(self, root, split):
 
         path = os.path.join(root, f'cebab_{split}.csv')
         self.data = pd.read_csv(path)
@@ -30,7 +29,6 @@ class CEBABDataset(Dataset):
         self.data['service'] = self.data.apply(lambda row: process(row['service']), axis=1)
         self.data['noise'] = self.data.apply(lambda row: process(row['noise']), axis=1)
         self.data['bin_rating'] = self.data.apply(lambda row: process2(row['bin_rating']), axis=1)
-        self.model = SentenceTransformer(model_name)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def __len__(self):
@@ -78,7 +76,7 @@ def collate_fn(batch):
 
 
 class IMDBDataset(Dataset):
-    def __init__(self, root, split, model_name=sentence_embedder):
+    def __init__(self, root, split):
         """
         Initialize the dataset with a CSV file and tokenizer.
 
@@ -99,7 +97,6 @@ class IMDBDataset(Dataset):
         self.data['background setting'] = self.data.apply(lambda row: process(row['background setting']), axis=1)
         self.data['editing'] = self.data.apply(lambda row: process(row['editing']), axis=1)
         self.data['sentiment'] = self.data.apply(lambda row: process2(row['sentiment']), axis=1)
-        self.model = SentenceTransformer(model_name)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def __len__(self):
@@ -127,13 +124,14 @@ class IMDBDataset(Dataset):
 
 
 class EmbeddingExtractor_text:
-    def __init__(self, train_loader, val_loader, test_loader, batch_size, device='cuda'):
+    def __init__(self, train_loader, val_loader, test_loader, batch_size, model_name, device='cuda'):
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.device = device
         self.batch_size = batch_size
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.model = SentenceTransformer(model_name).to(device)
 
     def _extract_embeddings(self, loader):
         """Helper function to extract embeddings for a given DataLoader."""
@@ -142,10 +140,11 @@ class EmbeddingExtractor_text:
         labels = []
 
         with torch.no_grad():
-            for review, concepts, targets in loader:
+            for review, concepts, targets in tqdm(loader):
                 # decode the reviews
-                review = [self.tokenizer.decode(review[i].tolist(), skip_special_tokens=True) for i in range(review.shape[0])]
-                embs = self.model.encode(review, convert_to_tensor=True)
+                ids = review['input_ids']
+                review = self.tokenizer.decode(ids, skip_special_tokens=True) 
+                embs = self.model.encode(review, convert_to_tensor=True, show_progress_bar=False)
                 embs = embs.unsqueeze(0)
                 concepts = concepts.unsqueeze(0)
                 targets = targets.unsqueeze(0)
@@ -157,7 +156,7 @@ class EmbeddingExtractor_text:
         embeddings = torch.cat(embeddings, dim=0)
         concepts = torch.cat(concepts_list, dim=0)
         labels = torch.cat(labels, dim=0)
-        return embeddings, concepts.float(), labels
+        return embeddings, concepts.float(), labels.long()
 
     def _create_loader(self, embeddings, concepts, labels, batch_size):
         """Helper function to create a DataLoader from embeddings and labels."""
@@ -178,17 +177,17 @@ def text_loader(dataset, root, batch_size):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     if dataset == 'cebab':
         root = os.path.join(root, 'data/cebab')
-        print(root)
-        loaded_train = CEBABDataset(root, 'train', model_name='all-MiniLM-L6-v2')
-        loaded_val = CEBABDataset(root, 'validation', model_name='all-MiniLM-L6-v2')
-        loaded_test = CEBABDataset(root, 'test', model_name='all-MiniLM-L6-v2')
+        loaded_train = CEBABDataset(root, 'train')
+        loaded_val = CEBABDataset(root, 'validation')
+        loaded_test = CEBABDataset(root, 'test')
     elif dataset == 'imdb':
         root = os.path.join(root, 'data/imdb')
-        loaded_train = IMDBDataset(root, 'train', model_name='all-MiniLM-L6-v2')
-        loaded_val = IMDBDataset(root, 'validation', model_name='all-MiniLM-L6-v2')
-        loaded_test = IMDBDataset(root, 'test', model_name='all-MiniLM-L6-v2')
+        loaded_train = IMDBDataset(root, 'train')
+        loaded_val = IMDBDataset(root, 'validation')
+        loaded_test = IMDBDataset(root, 'test')
 
-    E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, batch_size, device=device)
+    model_name= 'all-distilroberta-v1'
+    E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, batch_size, model_name, device=device)
     loaded_train, loaded_val, loaded_test = E_extr.produce_loaders()
 
     return loaded_train, loaded_val, loaded_test

@@ -12,8 +12,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
                  n_classes,
                  emb_size, 
                  task_penalty,
-                 kl_penalty,
-                 p_int_train=0.1):
+                 kl_penalty):
         super().__init__()
 
         self.in_size = in_size
@@ -22,7 +21,6 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.task_penalty = task_penalty
         self.kl_penalty = kl_penalty
         self.n_classes = n_classes
-        self.p_int_train = p_int_train
         self.has_concepts = True
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
@@ -87,8 +85,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         x = self.shared_layers(x)
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
-            if self.p_int_train!=None and self.training:
-                c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), self.p_int_train, False)
+            #if self.p_int_train!=None and self.training:
+            #    c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), self.p_int_train, False)
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
             logvar = self.logvar_layer[i](emb)
@@ -162,7 +160,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        task_loss, concept_loss, D_kl, c_pred, y_pred, _, _, _, y, c = self.step(batch, batch_idx)
+        task_loss, concept_loss, D_kl, c_pred, y_pred, _, _, _, c, y = self.step(batch, batch_idx)
 
         self.log('test_concept_loss', concept_loss)
         self.log('test_task_loss', task_loss)

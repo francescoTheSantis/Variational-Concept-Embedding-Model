@@ -1,12 +1,12 @@
 loader:
   _target_: src.loaders.text_loaders.text_loader
-  dataset: cebab
+  dataset: imdb
   root: ${root}
   batch_size: ${batch_size}  
 
 metadata:
-  n_concepts: 4
+  n_concepts: 8
   n_labels: 2
   input_dim: 768 # output dimension of the sentence transformer employed
   lr: 0.0001
-  name: cebab
+  name: imdb

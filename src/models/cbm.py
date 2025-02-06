@@ -11,7 +11,6 @@ class ConceptBottleneckModel(pl.LightningModule):
                  n_concepts, 
                  n_labels,
                  task_penalty,
-                 p_int_train=None,
                  task_interpretable=True):
         super().__init__()
 
@@ -39,14 +38,13 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
         self.task_penalty = task_penalty
-        self.p_int_train = p_int_train
         
-    def forward(self, x, concept_labels, noise, p_int):
+    def forward(self, x, concept_labels, noise=None, p_int=None):
         if noise!=None:
             eps = torch.randn_like(x)
             x = eps * noise + x * (1-noise)
         concepts = self.encoder(x)
-        p_int = self.p_int_train if self.training else p_int
+        p_int = None if self.training else p_int
         if p_int!=None:
             concepts = get_intervened_concepts_predictions(concepts, concept_labels, p_int)
         output = self.decoder(concepts)
@@ -92,3 +90,4 @@ class ConceptBottleneckModel(pl.LightningModule):
     
     def configure_optimizers(self):
         return [self.optimizer], [self.scheduler]
+
