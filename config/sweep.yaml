@@ -6,7 +6,7 @@ defaults:
 root: /home/fdesantis/Adversary-Aware-Concept-Embedding-Model
 
 ## Traninging parameters
-max_epochs: 500
+max_epochs: 1 # 200
 patience: 20
 batch_size: 128
 gamma: 0.5
@@ -16,7 +16,7 @@ lr_step: 100
 task_penalty: 0.1
 
 # Only for concept embedding models
-c_emb_size: 32
+c_emb_size: 16
 
 # Shared experimental parameters
 val_size: 0.1
@@ -27,9 +27,9 @@ hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      seed: 1 #1, 2, 3, 4, 5
-      dataset: mnist_addition, imdb, celeba, cub, mnist_addition_incomplete, cebab
-      model: blackbox, cbm_linear, cbm_mlp, cem, v_cem
+      seed: 1, 2 #1, 2, 3, 4, 5
+      dataset: mnist_addition, imdb #mnist_addition, imdb, celeba, cub, mnist_addition_incomplete, cebab
+      model: v_cem, blackbox #blackbox, cbm_linear, cbm_mlp, cem, v_cem
 
 wandb:
   project: "v_cem"        # Set your project name here

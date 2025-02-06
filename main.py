@@ -3,22 +3,13 @@ import hydra
 from omegaconf import DictConfig
 from hydra.utils import instantiate
 import wandb
-from src.utilities import set_seed
-from pytorch_lightning.loggers import WandbLogger, CSVLogger
+from src.utilities import set_seed, set_loggers
+import torch
 
 @hydra.main(config_path="config", config_name="sweep")
 def main(cfg: DictConfig) -> None:
 
-    # Initialize wandb and the csv logger
-    wandb.init(project=cfg.wandb.project,
-               entity=cfg.wandb.entity, 
-               name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
-    
-    wandb_logger = WandbLogger(project=cfg.wandb.project, 
-                               entity=cfg.wandb.entity, 
-                               name=f"{cfg.model.metadata.name}_{cfg.dataset.metadata.name}_{cfg.seed}")
-    
-    csv_logger = CSVLogger("logs/", name="experiment_metrics")
+    wandb_logger, csv_logger = set_loggers(cfg)
 
     print("Configuration Parameters:")
     for key, value in cfg.items():
@@ -38,7 +29,7 @@ def main(cfg: DictConfig) -> None:
     # Initialize the trainer
     trainer = Trainer(model, cfg, wandb_logger, csv_logger)
     trainer.build_trainer()
-    
+
     # Train the model
     trainer.train(loaded_train, loaded_val)
 
@@ -48,15 +39,17 @@ def main(cfg: DictConfig) -> None:
 
     ###### Intervetions ######
     if model.has_concepts:
-        # Perform interventions experiment
+        # Perform interventions for different noise levels
         intervention_df = trainer.interventions(loaded_test)
-
-        # Save the intervention results
         log_dir = csv_logger.log_dir
         intervention_df.to_csv(f"{log_dir}/interventions.csv", index=False)
-    
+
+        # Store the latent representations
+        latents = trainer.get_latents(loaded_test)
+        torch.save(latents, f"{log_dir}/latents.pt")
+
     #wandb_logger.experiment.finish()
-    wandb.finish()
+    wandb_logger.experiment.finish()
 
 if __name__ == "__main__":
     main()

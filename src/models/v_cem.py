@@ -76,7 +76,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         eps = torch.randn_like(std)
         return mu + eps * std
     
-    def forward(self, x, c=None, noise=None, p_int=None):
+    def forward(self, x, c, noise=None, p_int=None):
         bsz = x.shape[0]
         if noise!=None:
             eps = torch.randn_like(x)
@@ -109,8 +109,9 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         return c_pred, y_pred, c_emb, mu, logvar
 
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
-        value = -0.5 * torch.sum(1 + logvar_q - (mu_q - mu_p).pow(2) - logvar_q.exp(), dim=-1)
-        return value.mean()
+        dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
+        kl_div_batch = 0.5 * torch.sum(dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1), dim=-1)
+        return kl_div_batch.mean()
 
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, concept_labels, y = batch

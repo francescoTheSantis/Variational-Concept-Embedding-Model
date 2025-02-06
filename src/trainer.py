@@ -81,4 +81,22 @@ class Trainer:
                     intervention_results = {'noise': round(eps,1), 'p_int': round(p_int,1), 'f1': round(task_f1,2), 'accuracy': round(task_acc,2)}
                     intervention_df = pd.concat([intervention_df, pd.DataFrame([intervention_results])], ignore_index=True)
         return intervention_df
+    
+    def get_latents(self, test_dataloader):
+        latents = []
+        if self.model.__class__.__name__ == 'ConceptBottleneckModel':
+            idx = 0
+        elif self.model.__class__.__name__ == 'ConceptEmbeddingModel':
+            idx = 2
+        elif self.model.__class__.__name__ == 'VariationalConceptEmbeddingModel':
+            idx = 2
+         
+        self.model.eval()
+        with torch.no_grad():
+            for batch in test_dataloader:
+                x, c, y = batch
+                output = self.model.forward(x, c)
+                latents.append(output[idx])
+        latents = torch.cat(latents, dim=0)
+        return latents
 
