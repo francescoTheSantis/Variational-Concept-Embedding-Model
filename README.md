@@ -25,30 +25,3 @@ To execute the code, please follow the detailed steps outlined below:
 
 Additionally, we use Hydra to manage different configurations. To perform different experiments, you need to modify the `sweep.yaml` file located in the `config` folder.
 
-
-## TO DO
-DATASETS:
-- implementazione dataset aggiuntivi: 
-   - CUB ✅ (Phil)
-   - CelebA ✅ (Phil)
-   - IMDB ✅ (Fra)
-   - cebab ✅ (Fra)
-   - mnist sum ✅ (Fra)
-   - mnist sum incomplete ✅ (Fra)
-   - AWA2 (Phil)
-   - modificare cebab con task 3 classi (Phil)
-
-PAPER:
-- riscrivere metodo (Fra)
-
-METHOD:
-- variante proposta da gabri (Gabri)
-- aumentare regolarizzazione ✅ (Fra)
-
-METRICHS:
-- negative interventions (Fra)
-- cace? (...)
-
-BASELINES:
-- IntCEM? (...)
-
