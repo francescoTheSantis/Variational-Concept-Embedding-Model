@@ -11,8 +11,8 @@ loader:
 metadata:
   n_concepts: 10
   n_labels: 2
-  input_dim: 768 # output dimension of the vit32 cls
-  lr: 0.001
+  input_dim: 1000 # output dimension of the vit32 cls
+  lr: 0.0001
   name: celeba
 
 

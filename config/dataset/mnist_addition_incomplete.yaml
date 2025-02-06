@@ -10,6 +10,6 @@ loader:
 metadata:
   n_concepts: 10
   n_labels: 20
-  input_dim: 768 # output dimension of the vit32 cls
+  input_dim: 1000 # output dimension of the vit32 cls
   lr: 0.001
   name: mnist_addition_incomplete

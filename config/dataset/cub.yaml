@@ -9,6 +9,6 @@ loader:
 metadata:
   n_concepts: 112
   n_labels: 200
-  input_dim: 768 # output dimension of the vit32 cls
+  input_dim: 1000 # output dimension of the vit32 cls
   lr: 0.001
   name: cub

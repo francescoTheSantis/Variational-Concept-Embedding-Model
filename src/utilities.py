@@ -47,6 +47,8 @@ def set_loggers(cfg):
     group_format = (
         "{dataset}"
         "{model}"
+        "{emb_size}"
+        "{kl_penalty}"
     )
 
     group = group_format.format(**parse_hyperparams(cfg))
@@ -67,6 +69,8 @@ def parse_hyperparams(cfg: DictConfig):
         "dataset": cfg.dataset.metadata.name,
         "model": cfg.model.metadata.name,
         "seed": cfg.seed,
+        "emb_size": cfg.c_emb_size,
+        "kl_penalty": cfg.kl_penalty,
         "hydra_cfg": OmegaConf.to_container(cfg),
     }
     return hyperparams

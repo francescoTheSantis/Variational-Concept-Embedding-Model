@@ -108,12 +108,22 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         y_pred = self.classifier(c_emb.view(bsz, -1))
         return c_pred, y_pred, c_emb, mu, logvar
 
+    '''
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
         dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
         kl_div_batch = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
         kl_div_concept_mean = kl_div_batch.mean(dim=-1) # instead of summing over the concepts, we average
         return kl_div_concept_mean.mean() # average over the batch
+    '''
 
+    def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
+        mu_q = mu_q.flatten(start_dim=1)
+        logvar_q = logvar_q.flatten(start_dim=1)
+        mu_p = mu_p.flatten(start_dim=1)
+        dot_prod = torch.bmm((mu_q - mu_p).unsqueeze(-1).permute(0,2,1), (mu_q - mu_p).unsqueeze(-1)).squeeze()
+        kl_div = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
+        return kl_div.mean()
+    
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, concept_labels, y = batch
         c_pred, y_pred, c_emb, mu, logvar = self.forward(x, concept_labels, noise, p_int)
@@ -141,8 +151,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         task_loss, concept_loss, D_kl, _, _, _, _, _, _, _ = self.step(batch, batch_idx)
 
         self.log('train_concept_loss', concept_loss)
-        self.log('train_task_loss', task_loss)
-        self.log('train_kl_loss', D_kl)
+        self.log('train_task_loss', self.task_penalty*task_loss)
+        self.log('train_kl_loss', self.kl_penalty*D_kl)
         
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
         self.log('train_loss', loss)
@@ -153,8 +163,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         task_loss, concept_loss, D_kl, _, _, _, _, _, _, _ = self.step(batch, batch_idx)
 
         self.log('val_concept_loss', concept_loss)
-        self.log('val_task_loss', task_loss)
-        self.log('val_kl_loss', D_kl)
+        self.log('val_task_loss', self.task_penalty*task_loss)
+        self.log('val_kl_loss', self.kl_penalty*D_kl)
         
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
         self.log('val_loss', loss)
@@ -165,8 +175,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         task_loss, concept_loss, D_kl, c_pred, y_pred, _, _, _, c, y = self.step(batch, batch_idx)
 
         self.log('test_concept_loss', concept_loss)
-        self.log('test_task_loss', task_loss)
-        self.log('test_kl_loss', D_kl)
+        self.log('test_task_loss', self.task_penalty*task_loss)
+        self.log('test_kl_loss', self.kl_penalty*D_kl)
         
         task_acc = self.task_metric(y_pred, y)
         self.log('test_task_acc', task_acc)

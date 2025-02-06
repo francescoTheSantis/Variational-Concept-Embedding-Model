@@ -2,7 +2,6 @@ from src.trainer import Trainer
 import hydra
 from omegaconf import DictConfig
 from hydra.utils import instantiate
-import wandb
 from src.utilities import set_seed, set_loggers
 import torch
 

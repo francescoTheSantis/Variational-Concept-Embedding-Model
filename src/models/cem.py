@@ -77,21 +77,21 @@ class ConceptEmbeddingModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss, task_loss, concept_loss, _, _, _, _, _ = self.step(batch, batch_idx)
-        self.log('train_task_loss', task_loss)
+        self.log('train_task_loss', task_loss*self.task_penalty)
         self.log('train_concept_loss', concept_loss)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         loss, task_loss, concept_loss, _, _, _, _, _ = self.step(batch, batch_idx)
-        self.log('val_task_loss', task_loss)
+        self.log('val_task_loss', task_loss*self.task_penalty)
         self.log('val_concept_loss', concept_loss)
         self.log('val_loss', loss)
         return loss
 
     def test_step(self, batch, batch_idx):
         loss, task_loss, concept_loss, c, y, c_pred, y_hat, _ = self.step(batch, batch_idx)
-        self.log('test_task_loss', task_loss)
+        self.log('test_task_loss', task_loss*self.task_penalty)
         self.log('test_concept_loss', concept_loss)
         self.log('test_loss', loss)
 

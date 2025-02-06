@@ -5,7 +5,7 @@ params:
   n_classes: ${dataset.metadata.n_labels}
   emb_size: ${c_emb_size}
   task_penalty: ${task_penalty}
-  kl_penalty: 0.1
+  kl_penalty: 0.01
 
 metadata:
   name: v_cem

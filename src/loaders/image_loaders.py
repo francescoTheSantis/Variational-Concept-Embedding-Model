@@ -52,7 +52,7 @@ class EmbeddingExtractor:
                 for images, (concepts, targets) in tqdm(loader):
                     images = images.to(self.device)
                     outputs = self.model(images)
-                    output = outputs.last_hidden_state[:, 0, :]
+                    output = outputs.flatten(start_dim=1)
                     embeddings.append(output.cpu())
                     concepts_list.append(concepts.cpu())
                     labels.append(targets.cpu())
@@ -90,7 +90,7 @@ class EmbeddingExtractor:
 class CustomDataset(Dataset):
     def __init__(self, mean, std, images, labels, digits):
         
-        tensor = [] #np.zeros((len(images), 28, 56)) #torch.Tensor(len(images), 28, 56)
+        tensor = [] 
         for i in range(len(images)):
             tmp = torch.Tensor(images[i]).numpy()
             tmp = np.clip(tmp * 255, 0, 255).astype(np.uint8)
