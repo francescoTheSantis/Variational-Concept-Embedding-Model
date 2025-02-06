@@ -9,6 +9,7 @@ import torch
 @hydra.main(config_path="config", config_name="sweep")
 def main(cfg: DictConfig) -> None:
 
+    # Initialize the wandb logger
     wandb_logger, csv_logger = set_loggers(cfg)
 
     print("Configuration Parameters:")
@@ -45,10 +46,11 @@ def main(cfg: DictConfig) -> None:
         intervention_df.to_csv(f"{log_dir}/interventions.csv", index=False)
 
         # Store the latent representations
-        latents = trainer.get_latents(loaded_test)
+        latents, concept_ground_truth = trainer.get_latents(loaded_test)
         torch.save(latents, f"{log_dir}/latents.pt")
+        torch.save(concept_ground_truth, f"{log_dir}/concept_ground_truth.pt")
 
-    #wandb_logger.experiment.finish()
+    # Close the wandb logger
     wandb_logger.experiment.finish()
 
 if __name__ == "__main__":

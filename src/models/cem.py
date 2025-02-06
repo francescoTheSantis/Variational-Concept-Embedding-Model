@@ -66,31 +66,31 @@ class ConceptEmbeddingModel(pl.LightningModule):
 
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, c, y = batch
-        c_pred, y_hat, _ = self.forward(x, c, noise, p_int)
+        c_pred, y_hat, c_embs = self.forward(x, c, noise, p_int)
         task_loss = F.cross_entropy(y_hat, y)
         concept_loss = 0
         for i in range(c.shape[1]):
             concept_loss += F.binary_cross_entropy(c_pred[:,i], c[:,i])
         concept_loss /= c.shape[1]
         loss = concept_loss + task_loss * self.task_penalty
-        return loss, task_loss, concept_loss, c, y, c_pred, y_hat
+        return loss, task_loss, concept_loss, c, y, c_pred, y_hat, c_embs
 
     def training_step(self, batch, batch_idx):
-        loss, task_loss, concept_loss, _, _, _, _ = self.step(batch, batch_idx)
+        loss, task_loss, concept_loss, _, _, _, _, _ = self.step(batch, batch_idx)
         self.log('train_task_loss', task_loss)
         self.log('train_concept_loss', concept_loss)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, task_loss, concept_loss, _, _, _, _ = self.step(batch, batch_idx)
+        loss, task_loss, concept_loss, _, _, _, _, _ = self.step(batch, batch_idx)
         self.log('val_task_loss', task_loss)
         self.log('val_concept_loss', concept_loss)
         self.log('val_loss', loss)
         return loss
 
     def test_step(self, batch, batch_idx):
-        loss, task_loss, concept_loss, c, y, c_pred, y_hat = self.step(batch, batch_idx)
+        loss, task_loss, concept_loss, c, y, c_pred, y_hat, _ = self.step(batch, batch_idx)
         self.log('test_task_loss', task_loss)
         self.log('test_concept_loss', concept_loss)
         self.log('test_loss', loss)

@@ -110,8 +110,9 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
 
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
         dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
-        kl_div_batch = 0.5 * torch.sum(dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1), dim=-1)
-        return kl_div_batch.mean()
+        kl_div_batch = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
+        kl_div_concept_mean = kl_div_batch.mean(dim=-1) # instead of summing over the concepts, we average
+        return kl_div_concept_mean.mean() # average over the batch
 
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, concept_labels, y = batch

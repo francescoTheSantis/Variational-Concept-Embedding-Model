@@ -11,9 +11,9 @@ from PIL import Image
 import os, re
 import requests
 import tarfile
-from transformers import ViTModel, ViTFeatureExtractor
+#from transformers import ViTModel, ViTFeatureExtractor
+from torchvision.models import resnet34
 from tqdm import tqdm
-
 
 class EmbeddingExtractor:
     def __init__(self, train_loader, val_loader, test_loader, device='cuda', celeba=False):
@@ -24,8 +24,9 @@ class EmbeddingExtractor:
         self.celeba = celeba
         
         # Load ViT model pre-trained on ImageNet
-        self.feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch32-224-in21k')
-        self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
+        #self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
+        # Load ResNet34 model pre-trained on ImageNet
+        self.model = resnet34(pretrained=True)
         self.model = self.model.to(self.device)
         self.model.eval()
 
@@ -42,7 +43,8 @@ class EmbeddingExtractor:
                     # Extract embeddings
                     outputs = self.model(images)
                     # Get the [CLS] token representation
-                    output = outputs.last_hidden_state[:, 0, :]
+                    #output = outputs.last_hidden_state[:, 0, :]
+                    output = outputs.flatten(start_dim=1)
                     embeddings.append(output.cpu())
                     concepts_list.append(concepts.cpu())
                     labels.append(targets.cpu())
@@ -61,7 +63,7 @@ class EmbeddingExtractor:
         labels = torch.cat(labels, dim=0)
 
         if len(labels.shape)>1:
-            labels = torch.argmax(labels, dim=1)
+            labels = labels.squeeze()
 
         return embeddings, concepts.float(), labels
 

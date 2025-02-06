@@ -43,9 +43,6 @@ def get_intervened_concepts_predictions(predictions, labels, probability, return
 
 def set_loggers(cfg):
     name = f"seed{cfg.seed}.{int(time())}"
-    #wandb.init(project=cfg.wandb.project,
-    #           entity=cfg.wandb.entity, 
-    #           name=name)
     
     group_format = (
         "{dataset}"
