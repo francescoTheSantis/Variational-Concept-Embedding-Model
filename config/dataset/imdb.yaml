@@ -8,5 +8,5 @@ metadata:
   n_concepts: 8
   n_labels: 2
   input_dim: 768 # output dimension of the sentence transformer employed
-  lr: 0.0001
+  lr: 0.0005
   name: imdb

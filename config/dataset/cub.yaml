@@ -10,5 +10,5 @@ metadata:
   n_concepts: 112
   n_labels: 200
   input_dim: 768 # output dimension of the vit32 cls
-  lr: 0.0001
+  lr: 0.0005
   name: cub
