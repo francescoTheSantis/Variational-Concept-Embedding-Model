@@ -3,9 +3,10 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from src.metrics import Task_Accuracy
+from torchvision.models import resnet34
 
 class BlackboxModel(pl.LightningModule):
-    def __init__(self, input_dim, n_labels):
+    def __init__(self, input_dim, n_labels, train_backbone=False):
         super().__init__()
         # the hidden dimension is half of the input dimension
         hidden_dim = input_dim // 2
@@ -14,8 +15,28 @@ class BlackboxModel(pl.LightningModule):
         self.layer_3 = nn.Linear(hidden_dim, n_labels)
         self.has_concepts = False
         self.task_metric = Task_Accuracy()
+        self.train_backbone = train_backbone
+
+        if self.train_backbone:
+            self.setup_backbone()
+
+    def setup_backbone(self):
+        self.backbone = resnet34(pretrained=True)
+        self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
+        # freeze all the layers except the last one
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+        # Unfreeze the last layer
+        for param in self.backbone[-2].parameters():
+            param.requires_grad = True
+        for param in self.backbone[-1].parameters():
+            param.requires_grad = True
+        print('Backbone setup done!')
 
     def forward(self, x):
+        if self.train_backbone:
+            x = self.backbone(x)
+            x = x.flatten(start_dim=1)
         x = F.relu(self.layer_1(x))
         x = F.relu(self.layer_2(x))
         x = self.layer_3(x)

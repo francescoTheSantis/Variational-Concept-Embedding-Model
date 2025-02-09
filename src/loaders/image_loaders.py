@@ -11,7 +11,7 @@ from PIL import Image
 import os, re
 import requests
 import tarfile
-#from transformers import ViTModel, ViTFeatureExtractor
+from transformers import ViTModel
 from torchvision.models import resnet34
 from tqdm import tqdm
 
@@ -22,11 +22,12 @@ class EmbeddingExtractor:
         self.test_loader = test_loader
         self.device = device
         self.celeba = celeba
-        
+
         # Load ViT model pre-trained on ImageNet
         #self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
         # Load ResNet34 model pre-trained on ImageNet
         self.model = resnet34(pretrained=True)
+        self.model = nn.Sequential(*list(self.model.children())[:-1])
         self.model = self.model.to(self.device)
         self.model.eval()
 
@@ -43,17 +44,20 @@ class EmbeddingExtractor:
                     # Extract embeddings
                     outputs = self.model(images)
                     # Get the [CLS] token representation
-                    #output = outputs.last_hidden_state[:, 0, :]
-                    output = outputs.flatten(start_dim=1)
-                    embeddings.append(output.cpu())
+                    #outputs = outputs.last_hidden_state[:, 0, :]
+                    outputs = outputs.flatten(start_dim=1)
+                    embeddings.append(outputs.cpu())
                     concepts_list.append(concepts.cpu())
                     labels.append(targets.cpu())
             else:
                 for images, (concepts, targets) in tqdm(loader):
                     images = images.to(self.device)
+                    # Extract embeddings
                     outputs = self.model(images)
-                    output = outputs.flatten(start_dim=1)
-                    embeddings.append(output.cpu())
+                    # Get the [CLS] token representation
+                    #outputs = outputs.last_hidden_state[:, 0, :]
+                    outputs = outputs.flatten(start_dim=1)
+                    embeddings.append(outputs.cpu())
                     concepts_list.append(concepts.cpu())
                     labels.append(targets.cpu())
                 
@@ -70,7 +74,7 @@ class EmbeddingExtractor:
     def _create_loader(self, embeddings, concepts, labels, batch_size):
         """Helper function to create a DataLoader from embeddings and labels."""
         dataset = TensorDataset(embeddings, concepts, labels)
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     def produce_loaders(self):
         """Produces new DataLoaders with embeddings instead of raw images."""
@@ -235,15 +239,18 @@ def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, root
 
 
 class CUBDataset(Dataset):
-    def __init__(self, root_dir, train=False):
-        SELECTED_CONCEPTS = [1, 4, 6, 7, 10, 14, 15, 20, 21, 23, 25, 29, 30, 35, 36, 38, 40, 44, 
-                             45, 50, 51, 53, 54, 56, 57, 59, 63, 64, 69, 70, 72, 75, 80, 84, 90,
-                             91, 93, 99, 101, 106, 110, 111, 116, 117, 119, 125, 126, 131, 132, 
-                             134, 145, 149, 151, 152, 153, 157, 158, 163, 164, 168, 172, 178, 179, 
-                             181, 183, 187, 188, 193, 194, 196, 198, 202, 203, 208, 209, 211, 212, 
-                             213, 218, 220, 221, 225, 235, 236, 238, 239, 240, 242, 243, 244, 249,
-                             253, 254, 259, 260, 262, 268, 274, 277, 283, 289, 292, 293, 294, 298,
-                             299, 304, 305, 308, 309, 310, 311]
+    def __init__(self, root_dir, train=False, selected_concepts=None):
+        if selected_concepts==None:
+            SELECTED_CONCEPTS = [1, 4, 6, 7, 10, 14, 15, 20, 21, 23, 25, 29, 30, 35, 36, 38, 40, 44, 
+                                45, 50, 51, 53, 54, 56, 57, 59, 63, 64, 69, 70, 72, 75, 80, 84, 90,
+                                91, 93, 99, 101, 106, 110, 111, 116, 117, 119, 125, 126, 131, 132, 
+                                134, 145, 149, 151, 152, 153, 157, 158, 163, 164, 168, 172, 178, 179, 
+                                181, 183, 187, 188, 193, 194, 196, 198, 202, 203, 208, 209, 211, 212, 
+                                213, 218, 220, 221, 225, 235, 236, 238, 239, 240, 242, 243, 244, 249,
+                                253, 254, 259, 260, 262, 268, 274, 277, 283, 289, 292, 293, 294, 298,
+                                299, 304, 305, 308, 309, 310, 311]
+        else:
+            SELECTED_CONCEPTS = selected_concepts
 
         self.root_dir = root_dir
         self.train = train
@@ -347,18 +354,18 @@ class CUBDataset(Dataset):
         return image, concepts, label
     
 
-def CUB200_loader(batch_size, val_size=0.1, seed = 42, root=None, num_workers=3, pin_memory=True, augment=True, shuffle=True):
+def CUB200_loader(batch_size, val_size=0.1, seed = 42, root=None, num_workers=3, pin_memory=True, augment=True, shuffle=True, selected_concepts=None):
     generator = torch.Generator().manual_seed(seed) 
 
     path = os.path.join(root, 'data')
-    train_dataset = CUBDataset(root_dir=path, train=True)
-    test_dataset = CUBDataset(root_dir=path, train=False)
+    train_dataset = CUBDataset(root_dir=path, train=True, selected_concepts=selected_concepts)
+    test_dataset = CUBDataset(root_dir=path, train=False, selected_concepts=selected_concepts)
 
     val_size = int(len(train_dataset) * val_size)
     train_size = len(train_dataset) - val_size
 
     train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size], generator=generator)
-
+ 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
@@ -366,12 +373,32 @@ def CUB200_loader(batch_size, val_size=0.1, seed = 42, root=None, num_workers=3,
     print(f"Validation dataset size: {len(val_dataset)}")
     print(f"Test dataset size: {len(test_dataset)}")
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('Extracting embeddings...')
-    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
-    train_loader, val_loader, test_loader = E_extr.produce_loaders()
+    train_loader = create_loader(train_loader, batch_size)
+    val_loader = create_loader(val_loader, batch_size)
+    test_loader = create_loader(test_loader, batch_size)
+    
+    #if not finetune_backbone:
+    #    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #    print('Extracting embeddings...')
+    #    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
+    #    train_loader, val_loader, test_loader = E_extr.produce_loaders()
 
     return train_loader, val_loader, test_loader
+
+def create_loader(loader, batch_size):
+    img_tensor, concepts_list, labels = [], [], []
+    for images, concepts, targets in tqdm(loader):
+                        img_tensor.append(images)
+                        concepts_list.append(concepts)
+                        labels.append(targets)
+    img_tensor = torch.cat(img_tensor, dim=0)
+    concepts = torch.cat(concepts_list, dim=0).float()
+    labels = torch.cat(labels, dim=0)    
+    dataset = TensorDataset(img_tensor, concepts, labels)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+
+#################################### Probably to be eliminated ####################################
 
 # CelebA loader
 # Problem of the loader: you need to download the dataset yourself and create a structure like this:

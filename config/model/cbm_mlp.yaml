@@ -5,6 +5,7 @@ params:
   n_labels: ${dataset.metadata.n_labels}
   task_penalty: ${task_penalty}
   task_interpretable: false
+  train_backbone: ${dataset.metadata.finetune_backbone}
 
 metadata:
   name: cbm_mlp

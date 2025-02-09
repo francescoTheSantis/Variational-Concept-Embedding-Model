@@ -6,22 +6,27 @@ defaults:
 root: /home/fdesantis/Adversary-Aware-Concept-Embedding-Model
 
 ## Traninging parameters
-max_epochs: 100 # 200
+max_epochs: 500
 patience: 20
-batch_size: 512
+batch_size: 128
 gamma: 0.5
-lr_step: 50
+lr_step: 100
 
 ## Model parameters
 task_penalty: 0.1
 
 # Only for concept embedding models
-c_emb_size: 32
+c_emb_size: 16
+p_int_train: 0.25
 
 # Only for V-CEM
 # This parameter is specified here instead of in the model-specific configuration file
 # in order to facilitate the sweep and the logs of such parameter
 kl_penalty: null
+
+# backbone parameters
+img_backbone_emb_size: 512
+text_backbone_emb_size: 768
 
 # Shared experimental parameters
 val_size: 0.1
@@ -32,10 +37,9 @@ hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      seed: 1 #1, 2, 3, 4, 5
-      dataset: celeba # celeba, cub, cebab, imdb, mnist_addition, mnist_addition_incomplete
+      seed: 1, 2, 3 #1, 2, 3, 4, 5
+      dataset: cebab, imdb #cebab, imdb, mnist_addition, cub 
       model: v_cem #v_cem, cem, cbm_mlp, cbm_linear, blackbox 
-      kl_penalty: 0.01, 0.1, 1.0
 
 wandb:
   project: "v_cem"        # Set your project name here

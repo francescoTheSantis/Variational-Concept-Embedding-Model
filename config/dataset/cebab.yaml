@@ -3,10 +3,11 @@ loader:
   dataset: cebab
   root: ${root}
   batch_size: ${batch_size}  
-
+  
 metadata:
   n_concepts: 4
-  n_labels: 2
-  input_dim: 768 # output dimension of the sentence transformer employed
-  lr: 0.001
+  n_labels: 3
+  input_dim: ${text_backbone_emb_size}
+  lr: 0.0005
   name: cebab
+  finetune_backbone: false

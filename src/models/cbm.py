@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.metrics import Task_Accuracy, Concept_Accuracy
 from src.utilities import get_intervened_concepts_predictions
+from torchvision.models import resnet34
 
 class ConceptBottleneckModel(pl.LightningModule):
     def __init__(self, 
@@ -11,7 +12,8 @@ class ConceptBottleneckModel(pl.LightningModule):
                  n_concepts, 
                  n_labels,
                  task_penalty,
-                 task_interpretable=True):
+                 task_interpretable=True,
+                 train_backbone=False):
         super().__init__()
 
         # Encoder: Maps input to concepts
@@ -38,8 +40,28 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
         self.task_penalty = task_penalty
-        
+
+        self.train_backbone = train_backbone
+        if self.train_backbone:
+            self.setup_backbone()
+
+    def setup_backbone(self):
+        self.backbone = resnet34(pretrained=True)
+        self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
+        # freeze all the layers except the last one
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+        # Unfreeze the last layer
+        for param in self.backbone[-2].parameters():
+            param.requires_grad = True
+        for param in self.backbone[-1].parameters():
+            param.requires_grad = True
+        print('Backbone setup done!')
+
     def forward(self, x, concept_labels, noise=None, p_int=None):
+        if self.train_backbone:
+            x = self.backbone(x)
+            x = x.flatten(start_dim=1)
         if noise!=None:
             eps = torch.randn_like(x)
             x = eps * noise + x * (1-noise)
@@ -77,9 +99,6 @@ class ConceptBottleneckModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         loss, task_loss, concept_loss, c, y, c_pred, y_hat = self.step(batch, batch_idx)
-        self.log('test_task_loss', task_loss*self.task_penalty)
-        self.log('test_concept_loss', concept_loss)
-        self.log('test_loss', loss)
 
         task_acc = self.task_metric(y_hat, y)
         self.log('test_task_acc', task_acc)

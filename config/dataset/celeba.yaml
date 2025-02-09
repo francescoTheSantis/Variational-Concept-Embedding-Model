@@ -5,14 +5,25 @@ loader:
   val_size: ${val_size}
   num_workers: 3
   root: ${root}
-  concept_names: ["Mouth_Slightly_Open", "Smiling", "Wearing_Lipstick", "High_Cheekbones", "Heavy_Makeup", "Wavy_Hair", "Oval_Face", "Pointy_Nose", "Arched_Eyebrows", "Big_Lips"]
-  class_attributes: ["Male"]
+  concept_names: ["Mouth_Slightly_Open", "Smiling", "High_Cheekbones", "Male"]
+  class_attributes: ["Attractive"]
+
+#ID:           Attribute:  Balance:
+#24             No_Beard  0.834940
+#39                Young  0.773617
+#2            Attractive  0.512505
+#21  Mouth_Slightly_Open  0.483428
+#31              Smiling  0.482080
+#36     Wearing_Lipstick  0.472436
+#19      High_Cheekbones  0.455032
+#20                 Male  0.416754
 
 metadata:
-  n_concepts: 10
+  n_concepts: 4
   n_labels: 2
-  input_dim: 1000 # output dimension of the vit32 cls
+  input_dim: ${img_backbone_emb_size}
   lr: 0.0001
   name: celeba
+  finetune_backbone: false
 
 

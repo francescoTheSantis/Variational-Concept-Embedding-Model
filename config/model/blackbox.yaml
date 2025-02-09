@@ -2,6 +2,7 @@ params:
   _target_: "src.models.blackbox.BlackboxModel"
   input_dim: ${dataset.metadata.input_dim}
   n_labels: ${dataset.metadata.n_labels}
+  train_backbone: ${dataset.metadata.finetune_backbone}
 
 metadata:
   name: blackbox

@@ -10,6 +10,7 @@ loader:
 metadata:
   n_concepts: 10
   n_labels: 20
-  input_dim: 1000 # output dimension of the vit32 cls
-  lr: 0.001
+  input_dim: ${img_backbone_emb_size}
+  lr: 0.0005
   name: mnist_addition_incomplete
+  finetune_backbone: false

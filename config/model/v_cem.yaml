@@ -5,7 +5,9 @@ params:
   n_classes: ${dataset.metadata.n_labels}
   emb_size: ${c_emb_size}
   task_penalty: ${task_penalty}
-  kl_penalty: 0.01
+  kl_penalty: 0.1
+  p_int_train: ${p_int_train}
+  train_backbone: ${dataset.metadata.finetune_backbone}
 
 metadata:
   name: v_cem

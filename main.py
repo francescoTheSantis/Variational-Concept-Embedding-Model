@@ -1,9 +1,12 @@
 from src.trainer import Trainer
 import hydra
 from omegaconf import DictConfig
-from hydra.utils import instantiate
+from hydra.utils import instantiate, get_class
 from src.utilities import set_seed, set_loggers
+from src.metrics import concept_alignment_score
 import torch
+import os
+import pandas as pd
 
 @hydra.main(config_path="config", config_name="sweep")
 def main(cfg: DictConfig) -> None:
@@ -20,7 +23,24 @@ def main(cfg: DictConfig) -> None:
     set_seed(cfg.seed)
 
     ###### Load the data ######
-    loaded_train, loaded_val, loaded_test = instantiate(cfg.dataset.loader)
+    data_path = os.path.join(cfg.root, 'stored_tensors', cfg.dataset.metadata.name)
+    train_path = f"{data_path}/train.pt"
+    val_path = f"{data_path}/val.pt"
+    test_path = f"{data_path}/test.pt"
+    # If the data have been preprocessed, load the preprocessed data
+    if os.path.exists(train_path) and os.path.exists(val_path) and os.path.exists(test_path):
+        print('Loading pre-processed data...')
+        loaded_train = torch.load(f"{data_path}/train.pt")
+        loaded_val = torch.load(f"{data_path}/val.pt")
+        loaded_test = torch.load(f"{data_path}/test.pt")
+    # Otherwise, preprocess the data and then store them
+    else:
+        print('Preprocessing data...')
+        loaded_train, loaded_val, loaded_test = instantiate(cfg.dataset.loader)
+        os.makedirs(data_path, exist_ok=True)
+        torch.save(loaded_train, train_path)
+        torch.save(loaded_val, val_path)
+        torch.save(loaded_test, test_path)
 
     ###### Instantiate the model ######
     model = instantiate(cfg.model.params)
@@ -32,6 +52,12 @@ def main(cfg: DictConfig) -> None:
 
     # Train the model
     trainer.train(loaded_train, loaded_val)
+
+    # Load the best model
+    model_class = get_class(cfg.model.params._target_)
+    model_kwargs = {k: v for k, v in cfg.model.params.items() if k not in ["_target_"]}
+    model = model_class.load_from_checkpoint(trainer.trainer.checkpoint_callback.best_model_path, **model_kwargs)
+    trainer.model = model
 
     ###### Test ######
     # Test the model on the test-set
@@ -45,9 +71,15 @@ def main(cfg: DictConfig) -> None:
         intervention_df.to_csv(f"{log_dir}/interventions.csv", index=False)
 
         # Store the latent representations
-        latents, concept_ground_truth = trainer.get_latents(loaded_test)
+        latents, concept_ground_truth, task_ground_truth = trainer.get_latents(loaded_test)
         torch.save(latents, f"{log_dir}/latents.pt")
         torch.save(concept_ground_truth, f"{log_dir}/concept_ground_truth.pt")
+        torch.save(task_ground_truth, f"{log_dir}/task_ground_truth.pt")
+
+        # Compute CAS
+        concept_cas, task_cas = concept_alignment_score(latents, concept_ground_truth, task_ground_truth)
+        cas_df = pd.DataFrame({"concept_cas": [concept_cas], "task_cas": [task_cas]})
+        cas_df.to_csv(f"{log_dir}/cas.csv", index=False)
 
     # Close the wandb logger
     wandb_logger.experiment.finish()

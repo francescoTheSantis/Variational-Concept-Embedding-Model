@@ -9,3 +9,7 @@ multirun/
 evaluate.ipynb
 
 figs/
+
+stored_tensors/
+
+__pycache__/

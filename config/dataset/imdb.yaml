@@ -1,12 +1,14 @@
 loader:
-  _target_: src.loaders.text_loaders.text_loader
-  dataset: imdb
-  root: ${root}
-  batch_size: ${batch_size}  
+  _target_: "src.loaders.text_loaders.text_loader"
+  dataset: "imdb"
+  root: "${root}"
+  batch_size: "${batch_size}"
+  selected_concepts: ["acting", "storyline", "emotional arousal", "cinematography"]
 
 metadata:
-  n_concepts: 8
+  n_concepts: 4
   n_labels: 2
-  input_dim: 768 # output dimension of the sentence transformer employed
+  input_dim: ${text_backbone_emb_size}
   lr: 0.001
   name: imdb
+  finetune_backbone: false

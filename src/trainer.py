@@ -13,7 +13,7 @@ class Trainer:
         self.wandb_logger = wandb_logger
         self.csv_logger = csv_logger
         self.model = model
-        self.epss = np.arange(0, 1.1, 0.1)
+        self.epss = np.arange(0, 1.1, 0.2)
         self.p_ints = np.arange(0, 1.1, 0.1)
 
     def build_trainer(self):
@@ -85,24 +85,30 @@ class Trainer:
     def get_latents(self, test_dataloader):
         latents = []
         concept_ground_truth = []
+        labels = []
         if self.model.__class__.__name__ == 'ConceptBottleneckModel':
             latent_concept_idx = 5
             true_concept_idx = 3
+            true_label_idx = 4
         elif self.model.__class__.__name__ == 'ConceptEmbeddingModel':
             latent_concept_idx = 7
             true_concept_idx = 3
+            true_label_idx = 4
         elif self.model.__class__.__name__ == 'VariationalConceptEmbeddingModel':
             latent_concept_idx = 5
             true_concept_idx = 8
+            true_label_idx = 9
         self.model.eval()
         with torch.no_grad():
             for batch_id, batch in enumerate(test_dataloader):
                 output = self.model.step(batch, batch_id)
                 latents.append(output[latent_concept_idx]) # concept representation
                 concept_ground_truth.append(output[true_concept_idx]) # real concepts
+                labels.append(output[true_label_idx]) # real labels
         latents = torch.cat(latents, dim=0)
         concept_ground_truth = torch.cat(concept_ground_truth, dim=0)
+        labels = torch.cat(labels, dim=0)
         if self.model.__class__.__name__ in ['VariationalConceptEmbeddingModel', 'ConceptEmbeddingModel']:
             latents = latents.flatten(start_dim=1)
-        return latents, concept_ground_truth
+        return latents, concept_ground_truth, labels
 

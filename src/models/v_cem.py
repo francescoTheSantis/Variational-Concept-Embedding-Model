@@ -1,9 +1,9 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from src.metrics import Task_Accuracy, Concept_Accuracy
 from src.utilities import get_intervened_concepts_predictions
+from torchvision.models import resnet34
 
 class VariationalConceptEmbeddingModel(pl.LightningModule):
     def __init__(self, 
@@ -12,7 +12,9 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
                  n_classes,
                  emb_size, 
                  task_penalty,
-                 kl_penalty):
+                 kl_penalty,
+                 p_int_train,
+                 train_backbone=False):
         super().__init__()
 
         self.in_size = in_size
@@ -24,6 +26,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.has_concepts = True
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
+        self.p_int_train = p_int_train
 
         # Initialize learnable concept prototypes using normal distribution
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -61,6 +64,23 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
             nn.Linear(self.n_concepts, self.n_classes)
         )
 
+        self.train_backbone = train_backbone
+        if self.train_backbone:
+            self.setup_backbone()
+
+    def setup_backbone(self):
+        self.backbone = resnet34(pretrained=True)
+        self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
+        # freeze all the layers except the last one
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+        # Unfreeze the last layer
+        for param in self.backbone[-2].parameters():
+            param.requires_grad = True
+        for param in self.backbone[-1].parameters():
+            param.requires_grad = True
+        print('Backbone setup done!')
+
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
         c_int = c_int.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
         cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
@@ -78,6 +98,9 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
     
     def forward(self, x, c, noise=None, p_int=None):
         bsz = x.shape[0]
+        if self.train_backbone:
+            x = self.backbone(x)
+            x = x.flatten(start_dim=1)
         if noise!=None:
             eps = torch.randn_like(x)
             x = eps * noise + x * (1-noise)
@@ -85,8 +108,6 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         x = self.shared_layers(x)
         for i in range(self.n_concepts):
             c_pred = self.concept_scorers[i](x) 
-            #if self.p_int_train!=None and self.training:
-            #    c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), self.p_int_train, False)
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
             logvar = self.logvar_layer[i](emb)
@@ -111,19 +132,29 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
     '''
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
         dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
-        kl_div_batch = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
-        kl_div_concept_mean = kl_div_batch.mean(dim=-1) # instead of summing over the concepts, we average
-        return kl_div_concept_mean.mean() # average over the batch
+        return dot_prod.mean() # average over the batch
     '''
 
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
+        dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
+        kl_div = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
+        return kl_div.mean() # average over the batch
+
+    '''
+    def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
+        # Flatten all the tensors
         mu_q = mu_q.flatten(start_dim=1)
         logvar_q = logvar_q.flatten(start_dim=1)
         mu_p = mu_p.flatten(start_dim=1)
+        dimension = mu_q.shape[-1]
+        # Compute the KL divergence
         dot_prod = torch.bmm((mu_q - mu_p).unsqueeze(-1).permute(0,2,1), (mu_q - mu_p).unsqueeze(-1)).squeeze()
         kl_div = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
-        return kl_div.mean()
-    
+        # Normalize the KL divergence with respect to the number of dimensions
+        kl_div /= dimension
+        return kl_div.mean() # average over the batch
+    '''
+
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, concept_labels, y = batch
         c_pred, y_pred, c_emb, mu, logvar = self.forward(x, concept_labels, noise, p_int)
@@ -153,12 +184,12 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.log('train_concept_loss', concept_loss)
         self.log('train_task_loss', self.task_penalty*task_loss)
         self.log('train_kl_loss', self.kl_penalty*D_kl)
-        
+
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
         self.log('train_loss', loss)
 
         return loss
-    
+
     def validation_step(self, batch, batch_idx):
         task_loss, concept_loss, D_kl, _, _, _, _, _, _, _ = self.step(batch, batch_idx)
 
@@ -174,10 +205,6 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         task_loss, concept_loss, D_kl, c_pred, y_pred, _, _, _, c, y = self.step(batch, batch_idx)
 
-        self.log('test_concept_loss', concept_loss)
-        self.log('test_task_loss', self.task_penalty*task_loss)
-        self.log('test_kl_loss', self.kl_penalty*D_kl)
-        
         task_acc = self.task_metric(y_pred, y)
         self.log('test_task_acc', task_acc)
 
@@ -185,7 +212,6 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.log('test_concept_acc', concept_acc)
         
         loss = concept_loss + (task_loss * self.task_penalty) + (D_kl * self.kl_penalty)
-        self.log('test_loss', loss)
 
         return loss
 

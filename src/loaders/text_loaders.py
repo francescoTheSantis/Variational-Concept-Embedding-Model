@@ -19,6 +19,15 @@ def process2(elem):
     else:
         return 0 
 
+def process3(elem):
+    elem = float(elem)
+    if elem<=2:
+        return 0
+    elif elem>2 and elem<=3:
+        return 1
+    else:
+        return 2
+
 class CEBABDataset(Dataset):
     def __init__(self, root, split):
 
@@ -28,7 +37,7 @@ class CEBABDataset(Dataset):
         self.data['ambiance'] = self.data.apply(lambda row: process(row['ambiance']), axis=1)
         self.data['service'] = self.data.apply(lambda row: process(row['service']), axis=1)
         self.data['noise'] = self.data.apply(lambda row: process(row['noise']), axis=1)
-        self.data['bin_rating'] = self.data.apply(lambda row: process2(row['bin_rating']), axis=1)
+        self.data['bin_rating'] = self.data.apply(lambda row: process3(row['average_rating']), axis=1) # bin_rating
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def __len__(self):
@@ -76,7 +85,7 @@ def collate_fn(batch):
 
 
 class IMDBDataset(Dataset):
-    def __init__(self, root, split):
+    def __init__(self, root, split, selected_concepts=None):
         """
         Initialize the dataset with a CSV file and tokenizer.
 
@@ -98,6 +107,10 @@ class IMDBDataset(Dataset):
         self.data['editing'] = self.data.apply(lambda row: process(row['editing']), axis=1)
         self.data['sentiment'] = self.data.apply(lambda row: process2(row['sentiment']), axis=1)
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        if selected_concepts==None:
+            self.selected_concepts = ['acting', 'storyline', 'emotional arousal', 'cinematography', 'soundtrack', 'directing', 'background setting', 'editing']
+        else:
+            self.selected_concepts = selected_concepts
 
     def __len__(self):
         return len(self.data)
@@ -108,7 +121,7 @@ class IMDBDataset(Dataset):
 
         # Extract review, concept annotations, and label
         review = self.tokenizer(self.data.loc[idx, 'review'])  # Column name for the review text
-        concepts = self.data.loc[idx, ['acting', 'storyline', 'emotional arousal', 'cinematography', 'soundtrack', 'directing', 'background setting', 'editing']].values
+        concepts = self.data.loc[idx, self.selected_concepts].values
 
         label = self.data.loc[idx, 'sentiment']  # Column name for the label
 
@@ -173,7 +186,7 @@ class EmbeddingExtractor_text:
         test_loader = self._create_loader(test_embeddings, test_concepts, test_labels, self.batch_size)
         return train_loader, val_loader, test_loader
 
-def text_loader(dataset, root, batch_size):
+def text_loader(dataset, root, batch_size, selected_concepts=None):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     if dataset == 'cebab':
         root = os.path.join(root, 'data/cebab')
@@ -182,9 +195,9 @@ def text_loader(dataset, root, batch_size):
         loaded_test = CEBABDataset(root, 'test')
     elif dataset == 'imdb':
         root = os.path.join(root, 'data/imdb')
-        loaded_train = IMDBDataset(root, 'train')
-        loaded_val = IMDBDataset(root, 'validation')
-        loaded_test = IMDBDataset(root, 'test')
+        loaded_train = IMDBDataset(root, 'train', selected_concepts)
+        loaded_val = IMDBDataset(root, 'validation', selected_concepts)
+        loaded_test = IMDBDataset(root, 'test', selected_concepts)
 
     model_name= 'all-distilroberta-v1'
     E_extr = EmbeddingExtractor_text(loaded_train, loaded_val, loaded_test, batch_size, model_name, device=device)
