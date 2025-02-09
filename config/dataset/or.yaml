@@ -1,6 +1,6 @@
 loader:
   _target_: src.loaders.toy_loaders.toy_loader_function
-  dataset: "xor"
+  dataset: "or"
   batch_size: ${batch_size}  
   train_size: 1000
   val_size: 100
@@ -11,5 +11,5 @@ metadata:
   n_labels: 2
   input_dim: 2
   lr: 0.005
-  name: xor
+  name: or
   finetune_backbone: false

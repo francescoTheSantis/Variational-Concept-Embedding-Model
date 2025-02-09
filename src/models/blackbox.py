@@ -9,10 +9,14 @@ class BlackboxModel(pl.LightningModule):
     def __init__(self, input_dim, n_labels, train_backbone=False):
         super().__init__()
         # the hidden dimension is half of the input dimension
+
         hidden_dim = input_dim // 2
-        self.layer_1 = nn.Linear(input_dim, hidden_dim)
-        self.layer_2 = nn.Linear(hidden_dim, hidden_dim)
-        self.layer_3 = nn.Linear(hidden_dim, n_labels)
+        self.model = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, n_labels)
+        )
+
         self.has_concepts = False
         self.task_metric = Task_Accuracy()
         self.train_backbone = train_backbone
@@ -37,15 +41,13 @@ class BlackboxModel(pl.LightningModule):
         if self.train_backbone:
             x = self.backbone(x)
             x = x.flatten(start_dim=1)
-        x = F.relu(self.layer_1(x))
-        x = F.relu(self.layer_2(x))
-        x = self.layer_3(x)
+        x = self.model(x)
         return x
 
     def step(self, batch, batch_idx):
         x, _, y = batch
         y_hat = self.forward(x)
-        loss = F.cross_entropy(y_hat, y)
+        loss = F.cross_entropy(y_hat, y.long())
         return loss, y, y_hat
 
     def training_step(self, batch, batch_idx):

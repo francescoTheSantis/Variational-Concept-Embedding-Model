@@ -37,9 +37,9 @@ hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      seed: 1, 2, 3 #1, 2, 3, 4, 5
-      dataset: cebab, imdb #cebab, imdb, mnist_addition, cub 
-      model: v_cem #v_cem, cem, cbm_mlp, cbm_linear, blackbox 
+      seed: 1, 2, 3, 4, 5
+      dataset: cebab, imdb, mnist_even_odd, mnist_addition, cub 
+      model: v_cem, cem, cbm_mlp, cbm_linear, blackbox 
 
 wandb:
   project: "v_cem"        # Set your project name here

@@ -77,9 +77,9 @@ def main(cfg: DictConfig) -> None:
         torch.save(task_ground_truth, f"{log_dir}/task_ground_truth.pt")
 
         # Compute CAS
-        concept_cas, task_cas = concept_alignment_score(latents, concept_ground_truth, task_ground_truth)
-        cas_df = pd.DataFrame({"concept_cas": [concept_cas], "task_cas": [task_cas]})
-        cas_df.to_csv(f"{log_dir}/cas.csv", index=False)
+        # concept_cas, task_cas = concept_alignment_score(latents, concept_ground_truth, task_ground_truth)
+        # cas_df = pd.DataFrame({"concept_cas": [concept_cas], "task_cas": [task_cas]})
+        # cas_df.to_csv(f"{log_dir}/cas.csv", index=False)
 
     # Close the wandb logger
     wandb_logger.experiment.finish()

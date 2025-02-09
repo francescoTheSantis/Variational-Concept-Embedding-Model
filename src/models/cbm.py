@@ -75,7 +75,7 @@ class ConceptBottleneckModel(pl.LightningModule):
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, c, y = batch
         c_pred, y_hat = self.forward(x, c, noise, p_int)
-        task_loss = F.cross_entropy(y_hat, y)
+        task_loss = F.cross_entropy(y_hat, y.long())
         concept_loss = 0
         for i in range(c.shape[1]):
             concept_loss += F.binary_cross_entropy(c_pred[:,i], c[:,i])

@@ -90,6 +90,55 @@ class EmbeddingExtractor:
 
         return train_loader, val_loader, test_loader
     
+class CustomMNIST(Dataset):
+    def __init__(self, root, mean, std, train=True):
+
+        self.mnist_data = datasets.MNIST(root=root, train=train)
+        self.mean = mean 
+        self.std = std 
+
+        self.transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.Grayscale(num_output_channels=3), 
+            transforms.ToTensor(),
+            transforms.Normalize(self.mean, self.std)
+        ])
+
+    def __len__(self):
+        return len(self.mnist_data)
+
+    def __getitem__(self, idx):
+        image, label = self.mnist_data[idx]
+        transformed_image = self.transform(image)
+        even_odd = int(label % 2 == 0)  
+        digit = np.zeros(10, dtype=int)
+        digit[label] = 1        
+        return transformed_image, digit, even_odd
+    
+def MNIST_even_odd_loader(batch_size, val_size=0.1, seed = 42, root=None, num_workers=3, pin_memory=True, shuffle=True):
+
+    mean = (0.4914, 0.4822, 0.4465)
+    std = (0.247, 0.243, 0.261)
+    generator = torch.Generator().manual_seed(seed) 
+
+    root_path = os.path.join(root, 'data')
+    train_dataset = CustomMNIST(root=root_path, mean=mean, std=std, train=True)
+    test_dataset = CustomMNIST(root=root_path, mean=mean, std=std, train=False)
+
+    val_size = int(len(train_dataset) * val_size)
+    train_size = len(train_dataset) - val_size
+    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size], generator=generator)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('Extracting embeddings...')
+    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
+    train_loader, val_loader, test_loader = E_extr.produce_loaders()
+
+    return train_loader, val_loader, test_loader
+
 
 class CustomDataset(Dataset):
     def __init__(self, mean, std, images, labels, digits):

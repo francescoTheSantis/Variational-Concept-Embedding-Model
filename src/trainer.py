@@ -13,7 +13,7 @@ class Trainer:
         self.wandb_logger = wandb_logger
         self.csv_logger = csv_logger
         self.model = model
-        self.epss = np.arange(0, 1.1, 0.2)
+        self.epss = np.arange(0, 1.1, 0.1)
         self.p_ints = np.arange(0, 1.1, 0.1)
 
     def build_trainer(self):

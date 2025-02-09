@@ -50,7 +50,6 @@ class CustomDataset(Dataset):
         digits[self.digits[idx]] = 1 
         return image, digits, label
     
-
 def MNIST_addition_loader(batch_size, val_size=0.1, seed=42, num_workers=3, pin_memory=True, shuffle=True):
 
     mean = (0.4914, 0.4822, 0.4465)

@@ -119,13 +119,13 @@ class ToyDataset(Dataset):
     def __getitem__(self, index):
         data = self.data[index]
         concept_label = self.concept_labels[index]
-        target_label = self.target_labels[index]
-        return data, concept_label, target_label
+        target_label = self.target_labels[index].squeeze()
+        return data.float(), concept_label.float(), target_label.float()
 
 # create a class that, given the specific cusotm dataset above, generates the train,val and test splits (batched)
 # and returns the dataloaders for each split
 class Toy_DataLoader:
-    def __init__(self, dataset, batch_size, train_size, val_size, test_size, random_state=0):
+    def __init__(self, dataset, batch_size, train_size, val_size, test_size, random_state=42):
         self.dataset = dataset
         self.batch_size = batch_size
         self.train_size = train_size
@@ -160,6 +160,34 @@ class Toy_DataLoader:
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
         return train_loader, val_loader, test_loader
+    
+
+def toy_loader_function(dataset, batch_size, train_size, val_size, test_size, random_state=42):
+    loaded_train, loaded_val, loaded_test = Toy_DataLoader(dataset, batch_size, train_size, val_size, test_size, random_state).get_data_loaders()
+    # Normalize the first element in the batch of all the splits
+    loaded_train = normalize(loaded_train)
+    loaded_val = normalize(loaded_val)
+    loaded_test = normalize(loaded_test)
+
+    return loaded_train, loaded_val, loaded_test
+
+def normalize(loader):
+    x_list, c_list, y_list = [], [], []
+    for x, c, y in loader:
+        x_list.append(x)
+        c_list.append(c)
+        y_list.append(y)
+    x = torch.cat(x_list, dim=0)
+    c = torch.cat(c_list, dim=0)
+    y = torch.cat(y_list, dim=0)
+
+    x_mean = x.mean(dim=0)
+    x_std = x.std(dim=0)
+    x = (x - x_mean) / x_std
+    # recreate the loader
+    _loader = torch.utils.data.TensorDataset(x, c, y)
+    loader = torch.utils.data.DataLoader(_loader, batch_size=loader.batch_size, shuffle=False)
+    return loader
 
 
 

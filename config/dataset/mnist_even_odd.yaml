@@ -1,0 +1,15 @@
+loader:
+  _target_: src.loaders.image_loaders.MNIST_even_odd_loader
+  batch_size: ${batch_size}  
+  seed: ${seed}
+  val_size: ${val_size}
+  num_workers: 3
+  root: ${root}
+
+metadata:
+  n_concepts: 10
+  n_labels: 2
+  input_dim: ${img_backbone_emb_size}
+  lr: 0.002
+  name: mnist_even_odd
+  finetune_backbone: false
