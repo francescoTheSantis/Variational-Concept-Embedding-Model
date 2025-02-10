@@ -14,7 +14,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
                  task_penalty,
                  kl_penalty,
                  p_int_train,
-                 train_backbone=False):
+                 train_backbone=False,
+                 sampling=False):
         super().__init__()
 
         self.in_size = in_size
@@ -27,6 +28,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
         self.p_int_train = p_int_train
+        self.sampling = sampling
 
         # Initialize learnable concept prototypes using normal distribution
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -40,7 +42,8 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.concept_scorers = nn.ModuleList()
         self.layers = nn.ModuleList()
         self.mu_layer = nn.ModuleList()
-        self.logvar_layer = nn.ModuleList()
+        if self.sampling:
+            self.logvar_layer = nn.ModuleList()
 
         for _ in range(self.n_concepts):
             layers = nn.Sequential(
@@ -56,7 +59,9 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
             self.layers.append(layers)
 
             self.mu_layer.append(nn.Linear(self.in_size + 1, self.emb_size))  
-            self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
+            
+            if self.sampling:
+                self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
 
         self.classifier = nn.Sequential(
             nn.Linear(self.emb_size*self.n_concepts, self.n_concepts),
@@ -98,6 +103,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
     
     def forward(self, x, c, noise=None, p_int=None):
         bsz = x.shape[0]
+        p_int = self.p_int_train if (self.training and self.current_epoch>10) else p_int
         if self.train_backbone:
             x = self.backbone(x)
             x = x.flatten(start_dim=1)
@@ -110,12 +116,15 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
             c_pred = self.concept_scorers[i](x) 
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
-            logvar = self.logvar_layer[i](emb)
-            if self.training:
-                c_emb = self.reparameterize(mu, logvar)
+            if self.sampling:
+                logvar = self.logvar_layer[i](emb)
+                if self.training:
+                    c_emb = self.reparameterize(mu, logvar)
+                else:
+                    c_emb = mu
             else:
                 c_emb = mu
-            if p_int!=None and not self.training:
+            if p_int!=None:
                 int_mask, c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, True)
                 c_emb = self.apply_intervention(c_pred, int_mask, c_emb, i)
             c_emb_list.append(c_emb.unsqueeze(1))
@@ -129,31 +138,13 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         y_pred = self.classifier(c_emb.view(bsz, -1))
         return c_pred, y_pred, c_emb, mu, logvar
 
-    '''
     def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
-        dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
-        return dot_prod.mean() # average over the batch
-    '''
-
-    def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
-        dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
-        kl_div = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
-        return kl_div.mean() # average over the batch
-
-    '''
-    def D_kl_gaussian(self, mu_q, logvar_q, mu_p):
-        # Flatten all the tensors
-        mu_q = mu_q.flatten(start_dim=1)
-        logvar_q = logvar_q.flatten(start_dim=1)
-        mu_p = mu_p.flatten(start_dim=1)
-        dimension = mu_q.shape[-1]
-        # Compute the KL divergence
-        dot_prod = torch.bmm((mu_q - mu_p).unsqueeze(-1).permute(0,2,1), (mu_q - mu_p).unsqueeze(-1)).squeeze()
-        kl_div = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))
-        # Normalize the KL divergence with respect to the number of dimensions
-        kl_div /= dimension
-        return kl_div.mean() # average over the batch
-    '''
+        if self.sampling:
+            dot_prod = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
+            d_kl = 0.5 * (dot_prod - self.emb_size - logvar_q.sum(dim=-1) + logvar_q.exp().sum(dim=-1))    
+        else:
+            d_kl = torch.bmm((mu_q - mu_p), (mu_q - mu_p).permute(0,2,1)).diagonal(dim1=-2, dim2=-1)
+        return d_kl.mean() # average over the batch
 
     def step(self, batch, batch_idx, noise=None, p_int=None):
         x, concept_labels, y = batch

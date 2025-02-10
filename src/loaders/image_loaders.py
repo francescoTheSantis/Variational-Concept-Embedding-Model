@@ -12,7 +12,7 @@ import os, re
 import requests
 import tarfile
 from transformers import ViTModel
-from torchvision.models import resnet34
+from torchvision.models import resnet50
 from tqdm import tqdm
 
 class EmbeddingExtractor:
@@ -26,7 +26,7 @@ class EmbeddingExtractor:
         # Load ViT model pre-trained on ImageNet
         #self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
         # Load ResNet34 model pre-trained on ImageNet
-        self.model = resnet34(pretrained=True)
+        self.model = resnet50(pretrained=True)
         self.model = nn.Sequential(*list(self.model.children())[:-1])
         self.model = self.model.to(self.device)
         self.model.eval()
@@ -554,27 +554,41 @@ class CelebADataset(CelebA):
 
         self.attr_names = [string for string in self.attr_names if string]
 
-        if concept_names is not None:
+        #if concept_names is not None:
             # Get indices for the concept names
-            self.concept_idx = [self.attr_names.index(concept) for concept in concept_names]
-    
+        #    self.concept_idx = [self.attr_names.index(concept) for concept in concept_names]
+
             # Check for overlap between concept indices and class indices
-            overlapping_indices = set(self.concept_idx) & set(self.class_idx)
-            if overlapping_indices:
-                overlapping_names = [self.attr_names[i] for i in overlapping_indices]
-                raise ValueError(f"Overlap detected between concept names and class attributes: {overlapping_names}")
-        else:
+        #    overlapping_indices = set(self.concept_idx) & set(self.class_idx)
+        #    if overlapping_indices:
+        #        overlapping_names = [self.attr_names[i] for i in overlapping_indices]
+        #        raise ValueError(f"Overlap detected between concept names and class attributes: {overlapping_names}")
+        #else:
             # Determine concept attribute names based on class attributes
-            self.concept_idx = [i for i in range(len(self.attr_names)) if i not in self.class_idx]
+            # self.concept_idx = [i for i in range(len(self.attr_names)) if i not in self.class_idx]
+        self.concept_idx = [self.attr_names.index(concept) for concept in concept_names]
 
         self.concept_attr_names = [self.attr_names[i] for i in self.concept_idx]
         self.task_attr_names = [self.attr_names[i] for i in self.class_idx]
+
+    def batch_binary_to_decimal_torch(self, binary_matrix):
+        # Ensure binary_matrix is 2D (even if it has only one row)
+        if binary_matrix.dim() == 1:
+            binary_matrix = binary_matrix.unsqueeze(0)  # Add batch dimension
+
+        # Compute powers of 2 dynamically based on input size
+        powers_of_two = 2 ** torch.arange(binary_matrix.shape[1] - 1, -1, -1, dtype=torch.float32, device=binary_matrix.device)
+
+        # Compute decimal values
+        decimal_values = (binary_matrix * powers_of_two).sum(dim=1).long()
+        return decimal_values
 
     def __getitem__(self, index: int):
         image, attributes = super(CelebADataset, self).__getitem__(index)
 
         # Extract the target (y) based on the class index
-        y = torch.stack([attributes[i] for i in self.class_idx])
+        y = self.batch_binary_to_decimal_torch(torch.stack([attributes[i] for i in self.class_idx]))
+        # Transform a vector of zeros and ones to a base 10 number
 
         # Extract concept attributes, excluding the class attributes
         concept_attributes = torch.stack([attributes[i] for i in self.concept_idx])
