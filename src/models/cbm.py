@@ -50,12 +50,12 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
         # freeze all the layers except the last one
         for param in self.backbone.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         # Unfreeze the last layer
-        for param in self.backbone[-2].parameters():
-            param.requires_grad = True
-        for param in self.backbone[-1].parameters():
-            param.requires_grad = True
+        #for param in self.backbone[-2].parameters():
+        #    param.requires_grad = True
+        #for param in self.backbone[-1].parameters():
+        #    param.requires_grad = True
         print('Backbone setup done!')
 
     def forward(self, x, concept_labels, noise=None, p_int=None):

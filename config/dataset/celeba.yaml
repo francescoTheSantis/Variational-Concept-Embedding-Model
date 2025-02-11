@@ -7,6 +7,7 @@ loader:
   root: ${root}
   concept_names: ["No_Beard", "Young", "Attractive", "Mouth_Slightly_Open", "Smiling", "Wearing_Lipstick", "High_Cheekbones"]
   class_attributes: ["Wavy_Hair", "Black_Hair", "Male"]
+  finetune_backbone: false
 
 #ID:           Attribute:  Balance:
 #24             No_Beard  0.834940
@@ -24,6 +25,6 @@ metadata:
   input_dim: ${img_backbone_emb_size}
   lr: 0.0001
   name: celeba
-  finetune_backbone: false
+  finetune_backbone: ${dataset.loader.finetune_backbone}
 
 

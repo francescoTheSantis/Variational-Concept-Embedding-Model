@@ -12,7 +12,7 @@ import os, re
 import requests
 import tarfile
 from transformers import ViTModel
-from torchvision.models import resnet50
+from torchvision.models import resnet34
 from tqdm import tqdm
 
 class EmbeddingExtractor:
@@ -26,7 +26,7 @@ class EmbeddingExtractor:
         # Load ViT model pre-trained on ImageNet
         #self.model = ViTModel.from_pretrained('google/vit-base-patch32-224-in21k')
         # Load ResNet34 model pre-trained on ImageNet
-        self.model = resnet50(pretrained=True)
+        self.model = resnet34(pretrained=True)
         self.model = nn.Sequential(*list(self.model.children())[:-1])
         self.model = self.model.to(self.device)
         self.model.eval()
@@ -591,12 +591,12 @@ class CelebADataset(CelebA):
         # Transform a vector of zeros and ones to a base 10 number
 
         # Extract concept attributes, excluding the class attributes
-        concept_attributes = torch.stack([attributes[i] for i in self.concept_idx])
+        concept_attributes = torch.stack([attributes[i] for i in self.concept_idx]).float()
 
-        return image, concept_attributes, y
+        return image, concept_attributes, y.squeeze()
 
 
-def CelebA_loader(batch_size, val_size=0.1, seed = 42, root=None, class_attributes=['Male'], concept_names=['Straight_Hair'], num_workers=3, pin_memory=True, shuffle=True):
+def CelebA_loader(batch_size, val_size=0.1, seed = 42, root=None, class_attributes=['Male'], concept_names=['Straight_Hair'], num_workers=3, pin_memory=True, shuffle=True, finetune_backbone=False):
     generator = torch.Generator().manual_seed(seed) 
 
     train_transform = transforms.Compose([
@@ -626,10 +626,11 @@ def CelebA_loader(batch_size, val_size=0.1, seed = 42, root=None, class_attribut
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('Extracting embeddings...')
-    E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
-    train_loader, val_loader, test_loader = E_extr.produce_loaders()
-
+    if not finetune_backbone:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print('Extracting embeddings...')
+        E_extr = EmbeddingExtractor(train_loader, val_loader, test_loader, device=device)
+        train_loader, val_loader, test_loader = E_extr.produce_loaders()
+    
     return train_loader, val_loader, test_loader
 

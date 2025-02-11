@@ -42,8 +42,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.concept_scorers = nn.ModuleList()
         self.layers = nn.ModuleList()
         self.mu_layer = nn.ModuleList()
-        if self.sampling:
-            self.logvar_layer = nn.ModuleList()
+        self.logvar_layer = nn.ModuleList()
 
         for _ in range(self.n_concepts):
             layers = nn.Sequential(
@@ -59,9 +58,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
             self.layers.append(layers)
 
             self.mu_layer.append(nn.Linear(self.in_size + 1, self.emb_size))  
-            
-            if self.sampling:
-                self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
+            self.logvar_layer.append(nn.Linear(self.in_size + 1, self.emb_size))
 
         self.classifier = nn.Sequential(
             nn.Linear(self.emb_size*self.n_concepts, self.n_concepts),
@@ -78,12 +75,12 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
         # freeze all the layers except the last one
         for param in self.backbone.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         # Unfreeze the last layer
-        for param in self.backbone[-2].parameters():
-            param.requires_grad = True
-        for param in self.backbone[-1].parameters():
-            param.requires_grad = True
+        #for param in self.backbone[-2].parameters():
+        #    param.requires_grad = True
+        #for param in self.backbone[-1].parameters():
+        #    param.requires_grad = True
         print('Backbone setup done!')
 
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
@@ -100,10 +97,10 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
-    
+
     def forward(self, x, c, noise=None, p_int=None):
         bsz = x.shape[0]
-        p_int = self.p_int_train if (self.training and self.current_epoch>10) else p_int
+        #p_int = self.p_int_train if (self.training and self.current_epoch>10) else p_int
         if self.train_backbone:
             x = self.backbone(x)
             x = x.flatten(start_dim=1)
@@ -116,12 +113,9 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
             c_pred = self.concept_scorers[i](x) 
             emb = self.layers[i](torch.cat([x, c_pred], dim=-1))
             mu = self.mu_layer[i](emb)
-            if self.sampling:
-                logvar = self.logvar_layer[i](emb)
-                if self.training:
-                    c_emb = self.reparameterize(mu, logvar)
-                else:
-                    c_emb = mu
+            logvar = self.logvar_layer[i](emb)
+            if self.training and self.sampling:
+                c_emb = self.reparameterize(mu, logvar)
             else:
                 c_emb = mu
             if p_int!=None:
@@ -164,8 +158,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         task_loss = task_form(y_pred, y.long())
         # KL divergence
         cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.emb_size)
-        prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + \
-            (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
+        prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
         D_kl = self.D_kl_gaussian(mu, logvar, prototype_emb)
         return concept_loss, task_loss, D_kl
 
