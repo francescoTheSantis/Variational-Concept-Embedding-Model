@@ -22,7 +22,7 @@ p_int_train: 0.25
 # Only for V-CEM
 # This parameter is specified here instead of in the model-specific configuration file
 # in order to facilitate the sweep and the logs of such parameter
-kl_penalty: null
+kl_penalty: 0.05
 
 # backbone parameters
 img_backbone_emb_size: 512
@@ -38,8 +38,9 @@ hydra:
   sweeper:
     params:
       seed: 1, 2, 3, 4, 5
-      dataset: cebab, imdb, mnist_even_odd, mnist_addition, celeba #, cub 
-      model: v_cem, cbm_mlp, cem, cbm_linear, blackbox #, cem, cbm_mlp, cbm_linear, blackbox 
+      dataset: cebab, celeba #, imdb, mnist_even_odd, mnist_addition, celeba
+      kl_penalty: 10, 1, 0.1, 0.05, 0.01, 0.001, 0.0001
+      model: v_cem #, cbm_mlp, cem, cbm_linear, blackbox 
 
 wandb:
   project: "v_cem"        # Set your project name here
