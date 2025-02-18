@@ -71,9 +71,10 @@ def main(cfg: DictConfig) -> None:
         intervention_df.to_csv(f"{log_dir}/interventions.csv", index=False)
 
         # Store the latent representations
-        latents, concept_ground_truth, task_ground_truth = trainer.get_latents(loaded_test)
+        latents, concept_prediction, concept_ground_truth, task_ground_truth = trainer.get_latents(loaded_test)
         torch.save(latents, f"{log_dir}/latents.pt")
         torch.save(concept_ground_truth, f"{log_dir}/concept_ground_truth.pt")
+        torch.save(concept_prediction, f"{log_dir}/concept_prediction.pt")
         torch.save(task_ground_truth, f"{log_dir}/task_ground_truth.pt")
 
         # Compute CAS

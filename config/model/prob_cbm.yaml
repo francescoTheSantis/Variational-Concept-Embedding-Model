@@ -1,14 +1,15 @@
 params:
-  _target_: "src.models.vcem.VariationalConceptEmbeddingModel"
+  _target_: "src.models.probcbm.ProbabilisticConceptBottleneckModel"
   in_size: ${dataset.metadata.input_dim}
   n_concepts: ${dataset.metadata.n_concepts}
   n_classes: ${dataset.metadata.n_labels}
   emb_size: ${c_emb_size}
-  task_penalty: ${task_penalty}
-  kl_penalty: ${kl_penalty}
+  task_emb_size: 128
+  kl_penalty: 5e-5
   p_int_train: ${p_int_train}
+  task_penalty: ${task_penalty}
   train_backbone: ${dataset.metadata.finetune_backbone}
-  sampling: true
+  mc_samples: 50
 
 metadata:
-  name: v_cem
+  name: prob_cbm

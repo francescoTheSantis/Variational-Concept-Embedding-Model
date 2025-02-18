@@ -86,18 +86,22 @@ class Trainer:
         latents = []
         concept_ground_truth = []
         labels = []
+        concept_predictions =[]
         if self.model.__class__.__name__ == 'ConceptBottleneckModel':
             latent_concept_idx = 5
             true_concept_idx = 3
             true_label_idx = 4
+            concept_pred_idx = 5
         elif self.model.__class__.__name__ == 'ConceptEmbeddingModel':
             latent_concept_idx = 7
             true_concept_idx = 3
             true_label_idx = 4
-        elif self.model.__class__.__name__ == 'VariationalConceptEmbeddingModel':
+            concept_pred_idx = 5
+        elif self.model.__class__.__name__ in ['VariationalConceptEmbeddingModel', 'ProbabilisticConceptBottleneckModel']:
             latent_concept_idx = 5
             true_concept_idx = 8
             true_label_idx = 9
+            concept_pred_idx = 3
         self.model.eval()
         with torch.no_grad():
             for batch_id, batch in enumerate(test_dataloader):
@@ -105,10 +109,12 @@ class Trainer:
                 latents.append(output[latent_concept_idx]) # concept representation
                 concept_ground_truth.append(output[true_concept_idx]) # real concepts
                 labels.append(output[true_label_idx]) # real labels
+                concept_predictions.append(torch.where(output[concept_pred_idx]>0.5,1,0))
         latents = torch.cat(latents, dim=0)
         concept_ground_truth = torch.cat(concept_ground_truth, dim=0)
         labels = torch.cat(labels, dim=0)
-        if self.model.__class__.__name__ in ['VariationalConceptEmbeddingModel', 'ConceptEmbeddingModel']:
+        concept_predictions = torch.cat(concept_predictions, dim=0)
+        if self.model.__class__.__name__ in ['VariationalConceptEmbeddingModel', 'ConceptEmbeddingModel', 'ProbabilisticConceptBottleneckModel']:
             latents = latents.flatten(start_dim=1)
-        return latents, concept_ground_truth, labels
+        return latents, concept_predictions, concept_ground_truth, labels
 

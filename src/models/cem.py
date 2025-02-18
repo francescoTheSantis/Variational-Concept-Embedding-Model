@@ -76,7 +76,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
             c_pred = self.concept_prob_predictor(context)
             c_pred_list.append(c_pred)
             if p_int!=None:
-                c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int)
+                c_pred = get_intervened_concepts_predictions(c_pred, c[:,i].unsqueeze(-1), p_int, False, self.training)
             context_pos = context[:, :self.emb_size]
             context_neg = context[:, self.emb_size:]
             c_emb = context_pos * c_pred + context_neg * (1 - c_pred)
