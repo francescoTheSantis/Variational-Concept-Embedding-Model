@@ -17,12 +17,11 @@ task_penalty: 0.1
 
 # Only for concept embedding models
 c_emb_size: 16
-p_int_train: 0.25
 
 # Only for V-CEM
 # This parameter is specified here instead of in the model-specific configuration file
 # in order to facilitate the sweep and the logs of such parameter
-kl_penalty: 0.05
+kl_penalty: 5e-2
 
 # backbone parameters
 img_backbone_emb_size: 512

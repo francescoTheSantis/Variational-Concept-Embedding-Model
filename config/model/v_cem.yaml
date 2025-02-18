@@ -6,7 +6,6 @@ params:
   emb_size: ${c_emb_size}
   task_penalty: ${task_penalty}
   kl_penalty: ${kl_penalty}
-  p_int_train: ${p_int_train}
   train_backbone: ${dataset.metadata.finetune_backbone}
   sampling: true
 

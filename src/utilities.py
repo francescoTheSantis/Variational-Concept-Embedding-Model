@@ -18,7 +18,7 @@ def set_seed(seed: int):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False, all_entries=False):
+def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False, all_entries=False, repeat=None):
     
     hard_predictions = torch.where(predictions > 0.5, 1, 0)
     # Ensure predictions and labels are 2D tensors
@@ -32,12 +32,26 @@ def get_intervened_concepts_predictions(predictions, labels, probability, return
 
     # Randomly select mismatched indices based on the given probability
     num_mismatches = mismatched_indices.size(0)
-    mask = torch.rand(num_mismatches) < probability
-    idxs_mask = mismatched_indices[mask]
-    mask = torch.zeros_like(predictions)
-    for index in idxs_mask:
-        mask[index[0], index[1]] = 1
-    intervened = labels * mask + predictions * (1 - mask)
+
+    if repeat!=None:
+        mask_list = []
+        for i in range(repeat):
+            mask = torch.rand(num_mismatches) < probability
+            idxs_mask = mismatched_indices[mask]
+            mask = torch.zeros_like(predictions)
+            for index in idxs_mask:
+                mask[index[0], index[1]] = 1
+            mask_list.append(mask)
+        mask_tensor = torch.stack(mask_list, dim=-1)
+        intervened = labels * mask + predictions * (1 - mask)
+        mask = mask_tensor
+    else:
+        mask = torch.rand(num_mismatches) < probability
+        idxs_mask = mismatched_indices[mask]
+        mask = torch.zeros_like(predictions)
+        for index in idxs_mask:
+            mask[index[0], index[1]] = 1
+        intervened = labels * mask + predictions * (1 - mask)
 
     if return_index:
         return mask, intervened

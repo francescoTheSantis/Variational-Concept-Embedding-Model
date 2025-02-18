@@ -13,7 +13,6 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
                  emb_size, 
                  task_penalty,
                  kl_penalty,
-                 p_int_train,
                  train_backbone=False,
                  sampling=False):
         super().__init__()
@@ -27,7 +26,6 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.has_concepts = True
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
-        self.p_int_train = p_int_train
         self.sampling = sampling
 
         # Initialize learnable concept prototypes using normal distribution

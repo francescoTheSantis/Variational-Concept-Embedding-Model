@@ -73,9 +73,9 @@ class ProbabilisticConceptBottleneckModel(pl.LightningModule):
         #for param in self.backbone[-1].parameters():
         #    param.requires_grad = True
         print('Backbone setup done!')
-
+    
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
-        c_int = c_int.unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
+        c_int = c_int.unsqueeze(2).expand(-1, -1, self.prototype_emb_pos.shape[-1], -1)
         cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
         cloned_c_pred = torch.where(cloned_c_pred>0.5,1,0)
         prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
@@ -83,7 +83,6 @@ class ProbabilisticConceptBottleneckModel(pl.LightningModule):
         c_int = c_int.squeeze()
         if len(c_emb.shape)>2:
             prototype_emb = prototype_emb.unsqueeze(-1).expand(-1,-1,c_emb.shape[-1])
-            c_int = c_int.unsqueeze(-1).expand(-1,-1,c_emb.shape[-1])
         int_emb = c_int * prototype_emb + (1 - c_int) * c_emb
         return int_emb
 
@@ -121,7 +120,13 @@ class ProbabilisticConceptBottleneckModel(pl.LightningModule):
                             - torch.norm(c_emb - self.prototype_emb_pos[i,:], dim=1)
                 c_pred = torch.sigmoid(self.a * distance)
             if p_int!=None:
-                int_mask, c_pred = get_intervened_concepts_predictions(c_pred.unsqueeze(-1), c[:,i].unsqueeze(-1), p_int, True, self.training)
+                repeat_param = self.mc_samples if self.training else None
+                int_mask, c_pred = get_intervened_concepts_predictions(c_pred.unsqueeze(-1), 
+                                                                       c[:,i].unsqueeze(-1), 
+                                                                       p_int, 
+                                                                       True, 
+                                                                       self.training,
+                                                                       repeat_param)
                 c_emb = self.apply_intervention(c_pred, int_mask, c_emb, i)
             c_emb_list.append(c_emb.unsqueeze(1))
             c_pred_list.append(c_pred.unsqueeze(1))
