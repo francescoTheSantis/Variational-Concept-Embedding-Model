@@ -75,16 +75,20 @@ class ProbabilisticConceptBottleneckModel(pl.LightningModule):
         print('Backbone setup done!')
     
     def apply_intervention(self, c_pred, c_int, c_emb, concept_idx):
-        c_int = c_int.unsqueeze(2).expand(-1, -1, self.prototype_emb_pos.shape[-1], -1)
-        cloned_c_pred = c_pred.detach().clone().unsqueeze(-1).expand(-1, -1, self.prototype_emb_pos.shape[-1])
+        if not len(c_pred.shape)>2:
+            c_pred = c_pred.unsqueeze(-1)
+        cloned_c_pred = c_pred.detach().clone().expand(-1, self.prototype_emb_pos.shape[-1],-1)
         cloned_c_pred = torch.where(cloned_c_pred>0.5,1,0)
-        prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, :, :] + (1 - cloned_c_pred) * self.prototype_emb_neg[None, :, :]
-        prototype_emb = prototype_emb[:,concept_idx,:]
-        c_int = c_int.squeeze()
+        prototype_emb = cloned_c_pred * self.prototype_emb_pos[None, concept_idx, :, None] + \
+                        (1 - cloned_c_pred) * self.prototype_emb_neg[None, concept_idx, :, None]
         if len(c_emb.shape)>2:
-            prototype_emb = prototype_emb.unsqueeze(-1).expand(-1,-1,c_emb.shape[-1])
+            c_int = c_int.unsqueeze(2).expand(-1, -1, self.prototype_emb_pos.shape[-1], -1).squeeze()
+            #prototype_emb = prototype_emb.unsqueeze(-1).expand(-1,-1,c_emb.shape[-1])
+        else:
+            c_int = c_int.unsqueeze(1).expand(-1, self.prototype_emb_pos.shape[-1], -1).int()
+            c_emb = c_emb.unsqueeze(-1)
         int_emb = c_int * prototype_emb + (1 - c_int) * c_emb
-        return int_emb
+        return int_emb.squeeze()
 
     def reparameterize(self, mu, logvar):
         expanded_logvar = logvar.unsqueeze(-1).expand(-1,-1,self.mc_samples)
@@ -121,13 +125,13 @@ class ProbabilisticConceptBottleneckModel(pl.LightningModule):
                 c_pred = torch.sigmoid(self.a * distance)
             if p_int!=None:
                 repeat_param = self.mc_samples if self.training else None
-                int_mask, c_pred = get_intervened_concepts_predictions(c_pred.unsqueeze(-1), 
+                int_mask, c_inter = get_intervened_concepts_predictions(c_pred.unsqueeze(-1), 
                                                                        c[:,i].unsqueeze(-1), 
                                                                        p_int, 
                                                                        True, 
                                                                        self.training,
                                                                        repeat_param)
-                c_emb = self.apply_intervention(c_pred, int_mask, c_emb, i)
+                c_emb = self.apply_intervention(c_inter, int_mask, c_emb, i)
             c_emb_list.append(c_emb.unsqueeze(1))
             c_pred_list.append(c_pred.unsqueeze(1))
             mu_list.append(mu.unsqueeze(1))
@@ -137,9 +141,7 @@ class ProbabilisticConceptBottleneckModel(pl.LightningModule):
         c_pred = torch.cat(c_pred_list, dim=1) 
         mu = torch.cat(mu_list, dim=1) 
         logvar = torch.cat(logvar_list, dim=1)
-
         y_pred = self.classify(c_emb)
-
         return c_pred, y_pred, c_emb, mu, logvar
 
     def classify(self, c_emb):

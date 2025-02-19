@@ -21,37 +21,42 @@ def set_seed(seed: int):
 def get_intervened_concepts_predictions(predictions, labels, probability, return_index=False, all_entries=False, repeat=None):
     
     hard_predictions = torch.where(predictions > 0.5, 1, 0)
-    # Ensure predictions and labels are 2D tensors
-    assert predictions.dim() == 2 and labels.dim() == 2, "Both tensors must be 2D"
-    
+
+    if repeat!=None:
+        hard_predictions = hard_predictions.unsqueeze(-1).expand(-1, -1, repeat)  
+        labels = labels.unsqueeze(-1).expand(-1, -1, repeat)   
+        predictions = predictions.unsqueeze(-1).expand(-1, -1, repeat)   
+        
     # Find mismatched indices if all_entries is False, select all otherwise
     if all_entries:
-        mismatched_indices = (torch.ones_like(hard_predictions)).nonzero(as_tuple=False)
+        mismatched_mask = (torch.ones_like(hard_predictions))#.nonzero(as_tuple=False)
     else:
-        mismatched_indices = (hard_predictions != labels).nonzero(as_tuple=False)
+        mismatched_mask = (hard_predictions != labels)#.nonzero(as_tuple=False)
 
+    '''
     # Randomly select mismatched indices based on the given probability
     num_mismatches = mismatched_indices.size(0)
 
-    if repeat!=None:
-        mask_list = []
-        for i in range(repeat):
-            mask = torch.rand(num_mismatches) < probability
-            idxs_mask = mismatched_indices[mask]
-            mask = torch.zeros_like(predictions)
-            for index in idxs_mask:
-                mask[index[0], index[1]] = 1
-            mask_list.append(mask)
-        mask_tensor = torch.stack(mask_list, dim=-1)
-        intervened = labels * mask + predictions * (1 - mask)
-        mask = mask_tensor
-    else:
-        mask = torch.rand(num_mismatches) < probability
-        idxs_mask = mismatched_indices[mask]
-        mask = torch.zeros_like(predictions)
-        for index in idxs_mask:
+    mask = torch.rand(num_mismatches) < probability
+    idxs_mask = mismatched_indices[mask]
+    mask = torch.zeros_like(predictions)
+    for index in idxs_mask:
+        if repeat!=None:
+            mask[index[0], index[1], index[2]] = 1
+        else:
             mask[index[0], index[1]] = 1
-        intervened = labels * mask + predictions * (1 - mask)
+    intervened = labels * mask + predictions * (1 - mask)
+    '''
+
+    # Generate a probability mask of the same shape
+    random_mask = torch.rand_like(predictions, dtype=torch.float)
+
+    # Apply probability threshold only on mismatched elements
+    mask = (random_mask < probability) & mismatched_mask
+    mask = mask.int()
+
+    # Apply intervention
+    intervened = labels * mask + predictions * (1-mask)
 
     if return_index:
         return mask, intervened
