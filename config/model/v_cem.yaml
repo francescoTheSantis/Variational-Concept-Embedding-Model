@@ -7,6 +7,7 @@ params:
   task_penalty: ${task_penalty}
   kl_penalty: ${kl_penalty}
   train_backbone: ${dataset.metadata.finetune_backbone}
+  p_int_train: null # not used in V-CEM
   sampling: true
 
 metadata:

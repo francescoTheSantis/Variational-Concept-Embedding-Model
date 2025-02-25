@@ -13,6 +13,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
                  emb_size, 
                  task_penalty,
                  kl_penalty,
+                 p_int_train=None,
                  train_backbone=False,
                  sampling=False):
         super().__init__()
@@ -27,6 +28,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
         self.sampling = sampling
+        self.p_int_train = p_int_train
 
         # Initialize learnable concept prototypes using normal distribution
         self.prototype_emb_pos = nn.Parameter(torch.randn(n_concepts, emb_size))
@@ -98,7 +100,7 @@ class VariationalConceptEmbeddingModel(pl.LightningModule):
 
     def forward(self, x, c, noise=None, p_int=None):
         bsz = x.shape[0]
-        #p_int = self.p_int_train if (self.training and self.current_epoch>10) else p_int
+        p_int = self.p_int_train if (self.training and self.current_epoch>20) else p_int
         if self.train_backbone:
             x = self.backbone(x)
             x = x.flatten(start_dim=1)
