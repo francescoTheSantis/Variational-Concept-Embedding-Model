@@ -13,6 +13,7 @@ class ConceptBottleneckModel(pl.LightningModule):
                  n_labels,
                  task_penalty,
                  task_interpretable=True,
+                 p_int_train=None,
                  train_backbone=False):
         super().__init__()
 
@@ -40,6 +41,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         self.task_metric = Task_Accuracy()
         self.concept_metric = Concept_Accuracy()
         self.task_penalty = task_penalty
+        self.p_int_train = p_int_train
 
         self.train_backbone = train_backbone
         if self.train_backbone:
@@ -59,6 +61,7 @@ class ConceptBottleneckModel(pl.LightningModule):
         print('Backbone setup done!')
 
     def forward(self, x, concept_labels, noise=None, p_int=None):
+        p_int = self.p_int_train if self.training else p_int
         if self.train_backbone:
             x = self.backbone(x)
             x = x.flatten(start_dim=1)
@@ -66,9 +69,8 @@ class ConceptBottleneckModel(pl.LightningModule):
             eps = torch.randn_like(x)
             x = eps * noise + x * (1-noise)
         concepts = self.encoder(x)
-        p_int = None if self.training else p_int
         if p_int!=None:
-            concepts = get_intervened_concepts_predictions(concepts, concept_labels, p_int)
+            concepts = get_intervened_concepts_predictions(concepts, concept_labels, p_int, False, self.training)
         output = self.decoder(concepts)
         return concepts, output
 

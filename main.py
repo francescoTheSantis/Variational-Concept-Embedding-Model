@@ -77,8 +77,9 @@ def main(cfg: DictConfig) -> None:
         torch.save(concept_prediction, f"{log_dir}/concept_prediction.pt")
         torch.save(task_ground_truth, f"{log_dir}/task_ground_truth.pt")
 
-    # Close the wandb logger
-    wandb_logger.experiment.finish()
+    # Close the wandb logger if it is used
+    if wandb_logger is not None:
+        wandb_logger.experiment.finish()
 
 if __name__ == "__main__":
     main()

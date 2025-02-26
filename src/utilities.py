@@ -64,6 +64,7 @@ def get_intervened_concepts_predictions(predictions, labels, probability, return
         return intervened
 
 def set_loggers(cfg):
+
     name = f"seed{cfg.seed}.{int(time())}"
     
     group_format = (
@@ -75,7 +76,10 @@ def set_loggers(cfg):
 
     group = group_format.format(**parse_hyperparams(cfg))
 
-    wandb_logger = WandbLogger(project=cfg.wandb.project, 
+    if cfg.wandb.project is None or cfg.wandb.entity is None:
+        wandb_logger = None
+    else:
+        wandb_logger = WandbLogger(project=cfg.wandb.project, 
                                entity=cfg.wandb.entity, 
                                name=name,
                                group=group)

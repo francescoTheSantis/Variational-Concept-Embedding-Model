@@ -6,6 +6,7 @@ params:
   task_penalty: ${task_penalty}
   task_interpretable: false
   train_backbone: ${dataset.metadata.finetune_backbone}
+  p_int_train: 0.25
 
 metadata:
   name: cbm_mlp

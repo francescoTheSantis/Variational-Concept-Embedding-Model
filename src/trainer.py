@@ -34,10 +34,13 @@ class Trainer:
 
         lr_monitor = LearningRateMonitor(logging_interval='step')
 
+        loggers = [self.wandb_logger, self.csv_logger] if self.wandb_logger is not None else self.csv_logger
+
         self.trainer = pl.Trainer(
             max_epochs=self.cfg.max_epochs,
+            min_epochs=self.cfg.min_epochs, 
             callbacks=[early_stopping, checkpoint_callback, lr_monitor],
-            logger=[self.wandb_logger, self.csv_logger],
+            logger=loggers,
             devices=self.cfg.gpus,  
             accelerator="gpu" 
         )

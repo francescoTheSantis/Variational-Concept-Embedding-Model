@@ -7,6 +7,7 @@ root: /home/fdesantis/Adversary-Aware-Concept-Embedding-Model
 
 ## Traninging parameters
 max_epochs: 500
+min_epochs: 50
 patience: 20
 batch_size: 128
 gamma: 0.5
@@ -30,18 +31,19 @@ text_backbone_emb_size: 768
 # Shared experimental parameters
 val_size: 0.1
 seed: 1
-gpus: 1
+gpus: [1]
 
 hydra:
   mode: MULTIRUN
   sweeper:
     params:
       seed: 1, 2, 3 #, 4, 5
-      dataset: cebab, imdb, mnist_even_odd, mnist_addition, celeba
-      model: prob_cbm, v_cem, cbm_mlp, cem, cbm_linear, blackbox 
+      dataset: cebab, imdb, celeba, mnist_even_odd, mnist_addition
+      model: v_cem, prob_cbm, cbm_mlp, cem, cbm_linear, blackbox 
+      #kl_penalty: 1e-4, 1e-3, 5e-2, 1e-2, 1e-1, 1, 10
 
 wandb:
-  project: "v_cem"        # Set your project name here
-  entity: "francescothesantis-politecnico-di-torino"  # Set your entity name here
+  project: null #"v_cem"        # Set your project name here
+  entity: null #"francescothesantis-politecnico-di-torino"  # Set your entity name here
 
 note: test
