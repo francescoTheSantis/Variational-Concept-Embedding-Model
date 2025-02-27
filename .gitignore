@@ -1,5 +1,3 @@
-# .gitignore
-
 data/
 
 results/
@@ -13,3 +11,5 @@ figs/
 stored_tensors/
 
 __pycache__/
+
+my_sweep.yaml

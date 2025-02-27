@@ -3,11 +3,11 @@ defaults:
   - model: blackbox
 
 ## Working directory
-root: /home/fdesantis/Adversary-Aware-Concept-Embedding-Model
+root: home_dir/ # Set your working directory here
 
 ## Traninging parameters
 max_epochs: 500
-min_epochs: 50
+min_epochs: 40
 patience: 20
 batch_size: 128
 gamma: 0.5
@@ -37,13 +37,12 @@ hydra:
   mode: MULTIRUN
   sweeper:
     params:
-      seed: 1, 2, 3 #, 4, 5
+      seed: 1, 2, 3
       dataset: cebab, imdb, celeba, mnist_even_odd, mnist_addition
       model: v_cem, prob_cbm, cbm_mlp, cem, cbm_linear, blackbox 
-      #kl_penalty: 1e-4, 1e-3, 5e-2, 1e-2, 1e-1, 1, 10
 
 wandb:
-  project: null #"v_cem"        # Set your project name here
-  entity: null #"francescothesantis-politecnico-di-torino"  # Set your entity name here
+  project: null # Set your project name here
+  entity: null # Set your entity name here
 
 note: test

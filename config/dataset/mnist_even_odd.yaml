@@ -13,3 +13,4 @@ metadata:
   lr: 0.002
   name: mnist_even_odd
   finetune_backbone: false
+  randint_epoch_start: 3

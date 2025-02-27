@@ -12,3 +12,4 @@ metadata:
   lr: 0.001
   name: imdb
   finetune_backbone: false
+  randint_epoch_start: 3

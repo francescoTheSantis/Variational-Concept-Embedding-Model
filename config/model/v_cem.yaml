@@ -8,6 +8,7 @@ params:
   kl_penalty: ${kl_penalty}
   train_backbone: ${dataset.metadata.finetune_backbone}
   p_int_train: 0.25
+  randint_epoch_start: ${dataset.metadata.randint_epoch_start}
   sampling: true
 
 metadata:

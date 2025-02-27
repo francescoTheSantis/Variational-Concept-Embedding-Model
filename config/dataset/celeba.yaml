@@ -8,7 +8,7 @@ loader:
   concept_names: ["No_Beard", "Young", "Attractive", "Mouth_Slightly_Open", "Smiling", "Wearing_Lipstick", "High_Cheekbones"]
   class_attributes: ["Wavy_Hair", "Black_Hair", "Male"]
   finetune_backbone: false
-
+  
 #ID:           Attribute:  Balance:
 #24             No_Beard  0.834940
 #39                Young  0.773617
@@ -26,5 +26,5 @@ metadata:
   lr: 0.0001
   name: celeba
   finetune_backbone: ${dataset.loader.finetune_backbone}
-
+  randint_epoch_start: 20
 
