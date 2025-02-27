@@ -1,4 +1,4 @@
-# Adversary-Aware-Concept-Embedding-Model
+# Variational Concept Embedding Model (V-CEM)
 ## How to Run the Code
 
 To execute the code, please follow the detailed steps outlined below:
