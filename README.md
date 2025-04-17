@@ -33,12 +33,15 @@ To execute the code, please follow the detailed steps outlined below:
    ```
 
 ## Citation
+If you use this code, please cite:
 
-@article{de2025v,
+<pre> ```bibtex 
+   @article{de2025v,
   title={V-CEM: Bridging Performance and Intervenability in Concept-based Models},
   author={De Santis, Francesco and Ciravegna, Gabriele and Bich, Philippe and Giordano, Danilo and Cerquitelli, Tania},
   journal={arXiv preprint arXiv:2504.03978},
   year={2025}
 }
+   ``` </pre>
 
 
