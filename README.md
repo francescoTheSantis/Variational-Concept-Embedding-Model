@@ -32,8 +32,6 @@ To execute the code, please follow the detailed steps outlined below:
    ```
 
 ## Citation
-If you use this code, please cite:
-
 <pre>@article{de2025v,
    title={V-CEM: Bridging Performance and Intervenability in Concept-based Models},
    author={De Santis, Francesco and Ciravegna, Gabriele and Bich, Philippe and Giordano, Danilo and Cerquitelli, Tania},
