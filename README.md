@@ -4,7 +4,7 @@ This repository contains the official implementation to reproduce the experiment
 **"V-CEM: Bridging Performance and Intervenability in Concept-based Models"**  
 Published at **The 3rd World Conference on eXplainable Artificial Intelligence**, 2025.
 
-## 📝 Summary
+## 📝 TLDR
 Concept-based eXplainable AI (C-XAI) improves model interpretability by using human-understandable concepts, enabling transparency and user intervention. Concept Bottleneck Models (CBMs) allow intervention by explicitly predicting concepts but underperform compared to black-box models. Concept Embedding Models (CEMs) improve in-distribution (ID) accuracy by learning from inputs and concept predictions but are less effective for intervention, especially out-of-distribution (OOD). We introduce the Variational Concept Embedding Model (V-CEM), which uses variational inference to boost intervention responsiveness. Evaluated across textual and visual datasets, V-CEM maintains CEM-level ID accuracy and matches CBM intervention performance in OOD, narrowing the gap between interpretability and generalization.
 
 <img src="assets/v_cem_schema.png" alt="V-CEM architecture" width="600"/>
