@@ -1,7 +1,7 @@
 # Variational Concept Embedding Model (V-CEM)
 
 This repository contains the official implementation to reproduce the experiments in the paper:  
-[**"V-CEM: Bridging Performance and Intervenability in Concept-based Models"**]([https://link-to-the-paper.com](https://arxiv.org/abs/2504.03978)) 
+[**"V-CEM: Bridging Performance and Intervenability in Concept-based Models"**](https://arxiv.org/abs/2504.03978) 
 Published at **The 3rd World Conference on eXplainable Artificial Intelligence**, 2025.
 
 ## 📝 TL;DR
