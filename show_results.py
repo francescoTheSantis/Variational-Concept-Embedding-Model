@@ -11,7 +11,8 @@ from matplotlib.ticker import FuncFormatter
 warnings.filterwarnings("ignore")
 plt.style.use(['science', 'ieee', 'no-latex'])
 
-path = '/home/fdesantis/Adversary-Aware-Concept-Embedding-Model/multirun/2025-02-27/00-56-20'
+# Add path to the experiments
+path = ''
 exps = os.listdir(path)
 exps_path = [os.path.join(path, exp) for exp in exps if 'multirun' not in exp]
 
